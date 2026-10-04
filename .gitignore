@@ -1,0 +1,22 @@
+# Environment & secrets
+.env
+*.env.local
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Telemetry DB & local runtime state
+data/*.db
+data/*.sqlite
+data/*.json
+context_payload.json
+*.log
+
+# OS files
+Thumbs.db
+.DS_Store

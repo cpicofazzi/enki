@@ -1,0 +1,468 @@
+{
+  "hub_name": "Enki Command Hub",
+  "version": "1.2.0",
+  "active_gateway": "openrouter",
+  "gateways": {
+    "openrouter": {
+      "name": "OpenRouter",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "hermes_model": "anthropic/claude-opus-5.5",
+      "omp_model": "anthropic/claude-fable-5.1",
+      "curated_leaders": {
+        "frontier_leaders": [
+          {
+            "name": "Claude Opus 5.5",
+            "model_id": "anthropic/claude-opus-5.5",
+            "lab": "Anthropic",
+            "intelligence_score": 58,
+            "role": "Current Frontier Leader (#1 on Artificial Analysis Intelligence Index)"
+          },
+          {
+            "name": "GPT-6 Astra",
+            "model_id": "openai/gpt-6-astra",
+            "lab": "OpenAI",
+            "intelligence_score": 53,
+            "role": "OpenAI Flagship Frontier"
+          },
+          {
+            "name": "GPT-6 Sol",
+            "model_id": "openai/gpt-6-sol",
+            "lab": "OpenAI",
+            "context": "1.05M tokens",
+            "pricing": "$2.00 prompt / $10.00 completion",
+            "role": "Ultra-Long-Context Frontier"
+          },
+          {
+            "name": "Qwen3.8 Max (0803)",
+            "model_id": "qwen/qwen3.8-max",
+            "lab": "Qwen",
+            "intelligence_score": 53,
+            "role": "Multilingual Open-Weights Giant"
+          },
+          {
+            "name": "Grok 4.7",
+            "model_id": "x-ai/grok-4.7",
+            "lab": "SpaceXAI",
+            "intelligence_score": 46,
+            "role": "Frontier Real-time Reasoning"
+          },
+          {
+            "name": "Gemini 3.8 Flash",
+            "model_id": "google/gemini-3.8-flash",
+            "lab": "Google",
+            "intelligence_score": 41,
+            "role": "High-Speed Multimodal Frontier"
+          }
+        ],
+        "value_leaders": [
+          {
+            "name": "Ling 3.0 Flash VL",
+            "model_id": "inclusionai/ling-3.0-flash-vl",
+            "lab": "InclusionAI",
+            "pricing": "$0.021 prompt / $0.0616 completion per 1M",
+            "role": "#1 Best Value on OpenRouter (65th pctl Coding, 64th pctl Agentic)"
+          },
+          {
+            "name": "GLM 5.3 Flash",
+            "model_id": "z-ai/glm-5.3-flash",
+            "lab": "Z.ai",
+            "pricing": "$0.06 prompt / $0.20 completion per 1M",
+            "role": "Top Agentic Value (93rd pctl Agentic, 84th pctl Coding, 82nd pctl Intel)"
+          },
+          {
+            "name": "GPT-6 Luna",
+            "model_id": "openai/gpt-6-luna",
+            "lab": "OpenAI",
+            "pricing": "$0.05 prompt / $0.25 completion per 1M",
+            "role": "Efficient OpenAI Reasoning (74th pctl Intel)"
+          },
+          {
+            "name": "MiMo-V2.6-Flash",
+            "model_id": "xiaomi/mimo-v2.6-flash",
+            "lab": "Xiaomi",
+            "pricing": "$0.07 prompt / $0.28 completion per 1M",
+            "role": "Ultra-Fast Open Model (72nd pctl Intel, 9.3T tokens)"
+          },
+          {
+            "name": "DeepSeek V4.1 Flash",
+            "model_id": "deepseek/deepseek-v4.1-flash",
+            "lab": "DeepSeek",
+            "pricing": "$0.08 prompt / $0.24 completion per 1M",
+            "role": "High-Efficiency DeepSeek Architecture"
+          }
+        ],
+        "category_champions": {
+          "smartest_coding": {
+            "name": "Claude Fable 5.1",
+            "model_id": "anthropic/claude-fable-5.1",
+            "metric": "82 coding score on Artificial Analysis"
+          },
+          "smartest_open": {
+            "name": "MiMo-V2.6-Pro",
+            "model_id": "xiaomi/mimo-v2.6-pro",
+            "metric": "46 intelligence score"
+          },
+          "top_usage": {
+            "name": "Space Bunny Alpha",
+            "model_id": "stealth/space-bunny-alpha",
+            "metric": "30.9T tokens/wk (#1 overall volume)"
+          },
+          "fastest": {
+            "name": "gpt-oss-120b",
+            "model_id": "openai/gpt-oss-120b",
+            "metric": "658 tok/s median output speed"
+          }
+        },
+        "always_latest_aliases": {
+          "gpt_sol_latest": "openai/gpt-sol",
+          "claude_sonnet_latest": "anthropic/claude-sonnet",
+          "gemini_flash_latest": "google/gemini-flash",
+          "glm_latest": "z-ai/glm",
+          "grok_latest": "x-ai/grok"
+        }
+      },
+      "task_profiles": {
+        "planning": {
+          "frontier_opus": "anthropic/claude-opus-5.5",
+          "frontier_astra": "openai/gpt-6-astra",
+          "value_leader": "inclusionai/ling-3.0-flash-vl",
+          "deep_logic": "deepseek/deepseek-r1",
+          "speed_vault_crawl": "google/gemini-2.0-flash-001"
+        },
+        "reasoning": {
+          "frontier_opus": "anthropic/claude-opus-5.5",
+          "frontier_astra": "openai/gpt-6-astra",
+          "frontier_sol": "openai/gpt-6-sol",
+          "value_leader": "z-ai/glm-5.3-flash",
+          "deep_math_logic": "deepseek/deepseek-r1",
+          "fast_stem": "openai/o3-mini"
+        },
+        "coding": {
+          "smartest_coding": "anthropic/claude-fable-5.1",
+          "sota_frontier": "anthropic/claude-3.7-sonnet",
+          "value_leader": "z-ai/glm-5.3-flash",
+          "open_smartest": "xiaomi/mimo-v2.6-pro",
+          "fast_routine": "qwen/qwen-2.5-coder-32b-instruct"
+        },
+        "image_generation": {
+          "fast_flux": "black-forest-labs/flux-1-schnell",
+          "photoreal_flux": "black-forest-labs/flux-1-dev",
+          "conceptual_dalle": "openai/dall-e-3"
+        }
+      }
+    },
+    "opencode_zen": {
+      "name": "OpenCode Zen",
+      "base_url": "https://opencode.ai/zen/v1",
+      "api_key_env": "OPENCODE_API_KEY",
+      "hermes_model": "deepseek-v4.1-flash",
+      "omp_model": "deepseek-v4.1-flash",
+      "curated_leaderboard": {
+        "source": "https://opencode.ai/data#leaderboard",
+        "top_models": [
+          {
+            "rank": 1,
+            "name": "space-bunny",
+            "model_id": "space-bunny",
+            "provider": "Stealth / Unknown",
+            "weekly_tokens": "61T",
+            "delta": "+252%",
+            "cache_ratio": "96.5%",
+            "role": "#1 Most Used Model Across OpenCode Community"
+          },
+          {
+            "rank": 2,
+            "name": "DeepSeek V4.1 Flash",
+            "model_id": "deepseek-v4.1-flash",
+            "provider": "DeepSeek",
+            "weekly_tokens": "36T",
+            "token_cost": "$0.30 prompt / $1.20 completion ($0.006 cached)",
+            "session_cost": "$0.0758 / session (avg 5.36M tokens)",
+            "cache_ratio": "96.4%",
+            "role": "#2 Overall, Flagship Balanced Coding & Planning"
+          },
+          {
+            "rank": 3,
+            "name": "Muse Spark 1.3 Contributor",
+            "model_id": "muse-spark-1.3-contributor",
+            "provider": "Meta",
+            "weekly_tokens": "33T",
+            "token_cost": "$0.10 prompt / $0.20 completion ($0.002 cached)",
+            "session_cost": "$0.0004 / session (Lowest on OpenCode!)",
+            "cache_ratio": "96.4%",
+            "role": "#3 Overall, Session Cost Champion ($0.0004/dev session)"
+          },
+          {
+            "rank": 4,
+            "name": "MiMo-V2.6-Flash",
+            "model_id": "mimo-v2.6-flash",
+            "provider": "Xiaomi",
+            "weekly_tokens": "9.4T",
+            "delta": "+101%",
+            "token_cost": "$0.16 prompt / $0.32 completion ($0.004 cached)",
+            "session_cost": "$0.0032 / session",
+            "cache_ratio": "95.1%",
+            "role": "#4 High-Speed Open Model Breakout (+101% growth)"
+          },
+          {
+            "rank": 5,
+            "name": "DeepSeek V4 Flash",
+            "model_id": "deepseek-v4-flash",
+            "provider": "DeepSeek",
+            "weekly_tokens": "5.9T",
+            "token_cost": "$0.30 prompt / $1.20 completion",
+            "session_cost": "$0.0378 / session",
+            "cache_ratio": "96.5%",
+            "role": "Stable Workhorse for High-Cache Agentic Loops"
+          },
+          {
+            "rank": 6,
+            "name": "Nemotron 3 Ultra",
+            "model_id": "nemotron-3-ultra",
+            "provider": "NVIDIA",
+            "weekly_tokens": "3.8T",
+            "cache_ratio": "90.5%",
+            "role": "NVIDIA Enterprise Code Architecture"
+          },
+          {
+            "rank": 7,
+            "name": "LongCat-2.5-Preview",
+            "model_id": "longcat-2.5-preview",
+            "provider": "Meituan",
+            "weekly_tokens": "2.8T",
+            "cache_ratio": "96.0%",
+            "role": "High-Efficiency Chinese/English Coding"
+          },
+          {
+            "rank": 8,
+            "name": "GLM-5.3-Flash",
+            "model_id": "glm-5.3-flash",
+            "provider": "Zhipu AI",
+            "weekly_tokens": "2.2T",
+            "token_cost": "$0.15 prompt / $0.50 completion ($0.03 cached)",
+            "session_cost": "$0.0691 / session",
+            "cache_ratio": "93.0%",
+            "role": "High Agentic pctl Coding & Tool Use"
+          },
+          {
+            "rank": 9,
+            "name": "MiMo-V2.5",
+            "model_id": "mimo-v2.5",
+            "provider": "Xiaomi",
+            "weekly_tokens": "843B",
+            "retention_rate": "68.8% (#2 highest retention)",
+            "session_cost": "$0.0019 / session",
+            "role": "High Retention Developer Favorite"
+          },
+          {
+            "rank": 10,
+            "name": "Muse Spark 1.2 Contributor",
+            "model_id": "muse-spark-1.2-contributor",
+            "provider": "Meta",
+            "weekly_tokens": "787B",
+            "retention_rate": "79.4% (#1 Highest Retention on OpenCode)",
+            "role": "#1 Developer Loyalty & Long-term Retention"
+          },
+          {
+            "rank": 12,
+            "name": "GPT-6 Luna",
+            "model_id": "gpt-6-luna",
+            "provider": "OpenAI",
+            "weekly_tokens": "661B",
+            "delta": "+257%",
+            "role": "Fastest Growing OpenAI Model on OpenCode (+257%)"
+          },
+          {
+            "rank": 13,
+            "name": "DeepSeek V4 Pro",
+            "model_id": "deepseek-v4-pro",
+            "provider": "DeepSeek",
+            "weekly_tokens": "496B",
+            "role": "DeepSeek Flagship Pro for Complex Reasoning & Architecture"
+          },
+          {
+            "rank": 14,
+            "name": "MiMo-V2.6-Pro",
+            "model_id": "mimo-v2.6-pro",
+            "provider": "Xiaomi",
+            "weekly_tokens": "496B",
+            "role": "Xiaomi Flagship Open Weights Pro"
+          },
+          {
+            "rank": 16,
+            "name": "Qwen3.8 Flash",
+            "model_id": "qwen3.8-flash",
+            "provider": "Alibaba Qwen",
+            "weekly_tokens": "273B",
+            "role": "Fast Lightweight Qwen Multilingual Coding"
+          }
+        ],
+        "efficiency_champions": {
+          "lowest_session_cost": {
+            "name": "Muse Spark 1.3 Contributor",
+            "model_id": "muse-spark-1.3-contributor",
+            "metric": "$0.0004 per developer session"
+          },
+          "highest_user_retention": {
+            "name": "Muse Spark 1.2 Contributor",
+            "model_id": "muse-spark-1.2-contributor",
+            "metric": "79.4% week-over-week retention (#1)"
+          },
+          "highest_cache_ratio": {
+            "name": "space-bunny & deepseek-v4.1-flash",
+            "metric": "96.5% cache hit ratio"
+          },
+          "fastest_growth": {
+            "name": "GPT-6 Luna",
+            "model_id": "gpt-6-luna",
+            "metric": "+257% week-over-week growth"
+          }
+        }
+      },
+      "task_profiles": {
+        "planning": {
+          "leaderboard_champion": "deepseek-v4.1-flash",
+          "cost_champion": "muse-spark-1.3-contributor",
+          "deep_logic": "deepseek-v4-pro",
+          "open_smartest": "mimo-v2.6-pro"
+        },
+        "reasoning": {
+          "frontier_pro": "deepseek-v4-pro",
+          "speed_reasoning": "mimo-v2.6-flash",
+          "agentic_flash": "glm-5.3-flash",
+          "openai_luna": "gpt-6-luna"
+        },
+        "coding": {
+          "leaderboard_top": "deepseek-v4.1-flash",
+          "lowest_session_cost": "muse-spark-1.3-contributor",
+          "breakout_speed": "mimo-v2.6-flash",
+          "flagship_pro": "deepseek-v4-pro",
+          "workhorse_cache": "deepseek-v4-flash"
+        },
+        "image_generation": {
+          "note": "OpenCode Zen is pure code/text; automatic fallback to OpenRouter for images"
+        }
+      }
+    }
+  },
+  "presets": {
+    "frontier": {
+      "name": "OpenRouter Official Frontier Leader (Claude Opus 5.5 + Claude Fable 5.1)",
+      "gateway": "openrouter",
+      "hermes_model": "anthropic/claude-opus-5.5",
+      "omp_model": "anthropic/claude-fable-5.1",
+      "cost_profile": "Frontier Max Quality (AA Score: 58 Intel / 82 Coding)"
+    },
+    "sota": {
+      "name": "Absolute SOTA Frontier (Max Quality Hybrid)",
+      "gateway": "openrouter",
+      "hermes_model": "deepseek/deepseek-r1",
+      "omp_model": "anthropic/claude-3.7-sonnet",
+      "cost_profile": "Frontier grade (~$0.012 per run)"
+    },
+    "value_leader": {
+      "name": "OpenRouter Official Value Leader (Ling 3.0 Flash VL + GLM 5.3 Flash)",
+      "gateway": "openrouter",
+      "hermes_model": "inclusionai/ling-3.0-flash-vl",
+      "omp_model": "z-ai/glm-5.3-flash",
+      "cost_profile": "Max Capability per Dollar ($0.02 - $0.06 / 1M tokens)"
+    },
+    "cost_optimal": {
+      "name": "Artificial Analysis Pareto Frontier (Best Cost per Task)",
+      "gateway": "openrouter",
+      "hermes_model": "google/gemini-2.0-flash-001",
+      "omp_model": "qwen/qwen-2.5-coder-32b-instruct",
+      "cost_profile": "98% cheaper (~$0.0002 per run)"
+    },
+    "opencode_leader": {
+      "name": "OpenCode Leaderboard Top Pick (DeepSeek V4.1 Flash #2 / 36T Tokens)",
+      "gateway": "opencode_zen",
+      "hermes_model": "deepseek-v4.1-flash",
+      "omp_model": "deepseek-v4.1-flash",
+      "cost_profile": "Leaderboard Top Ranked (96.4% Cache Ratio, ~$0.075/session)"
+    },
+    "opencode_ultra_value": {
+      "name": "OpenCode Session Cost Champion (Muse Spark 1.3 Contributor)",
+      "gateway": "opencode_zen",
+      "hermes_model": "muse-spark-1.3-contributor",
+      "omp_model": "muse-spark-1.3-contributor",
+      "cost_profile": "Lowest Developer Session Cost on OpenCode: $0.0004/session"
+    },
+    "opencode_pro": {
+      "name": "OpenCode Flagship Pro (DeepSeek V4 Pro Reasoning & Coding)",
+      "gateway": "opencode_zen",
+      "hermes_model": "deepseek-v4-pro",
+      "omp_model": "deepseek-v4-pro",
+      "cost_profile": "Deep Architecture Verification & Refactoring"
+    },
+    "free_tier": {
+      "name": "OpenCode Zen Zero-Cost Tier",
+      "gateway": "opencode_zen",
+      "hermes_model": "mimo-v2.6-flash",
+      "omp_model": "deepseek-v4-flash",
+      "cost_profile": "$0.00 Free"
+    }
+  },
+  "openrouter": {
+    "api_key_env": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "hermes_model": "anthropic/claude-opus-5.5",
+    "omp_model": "anthropic/claude-fable-5.1",
+    "temperature": 0.2,
+    "max_tokens": 4096
+  },
+  "obsidian": {
+    "vault_path": "C:/Users/Christian Picofazzi/Documents/pico-vault",
+    "tasks_folder": "40_Tasks",
+    "projects_folder": "10_Projects",
+    "knowledge_folder": "50_Knowledge",
+    "inbox_folder": "00_Inbox",
+    "log_file": "01_Dashboard/Enki_Activity_Log.md"
+  },
+  "omp": {
+    "binary_command": "C:/Users/Christian Picofazzi/.bun/bin/omp.cmd",
+    "default_timeout_seconds": 300,
+    "auto_verify": true,
+    "lsp_enabled": true
+  },
+  "projects": {
+    "Dinner Service Optimizer": {
+      "hermes_model": "nousresearch/hermes-3-llama-3.1-70b",
+      "omp_model": "anthropic/claude-3.5-sonnet",
+      "language": "python",
+      "test_commands": [
+        "py -m pytest tests/ -q"
+      ]
+    },
+    "Trend Scraper": {
+      "hermes_model": "nousresearch/hermes-3-llama-3.1-70b",
+      "omp_model": "anthropic/claude-3.5-sonnet",
+      "language": "python",
+      "test_commands": [
+        "py -m pytest -q"
+      ]
+    },
+    "Body.me App": {
+      "hermes_model": "nousresearch/hermes-3-llama-3.1-70b",
+      "omp_model": "anthropic/claude-3.5-sonnet",
+      "language": "python",
+      "test_commands": [
+        "streamlit run app.py --server.headless true"
+      ]
+    },
+    "DIY ESP32 (mixikid)": {
+      "hermes_model": "nousresearch/hermes-3-llama-3.1-70b",
+      "omp_model": "anthropic/claude-3.5-sonnet",
+      "language": "c++",
+      "test_commands": [
+        "pio run -e test"
+      ]
+    }
+  },
+  "telemetry": {
+    "db_path": "data/enki_telemetry.db",
+    "monthly_budget_usd": 25.0,
+    "warning_threshold_usd": 20.0
+  }
+}
