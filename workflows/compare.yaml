@@ -1,0 +1,131 @@
+# ==============================================================================
+# Enki Workflow: Multi-Model Parallel Candidate Compare
+# Fan-Out 2+ Models on Isolated Worktrees -> Compare Diffs -> Pick Winner
+# ==============================================================================
+id: compare
+name: Multi-Model Parallel Candidate Compare
+description: Executes multiple candidate models concurrently on isolated git worktrees, evaluates candidate diffs against test suites and quality rubrics, and merges the winning solution.
+version: 1.0.0
+author: Enki Core
+
+# Visual Builder Canvas Layout (Diamond Topology)
+canvas:
+  viewport:
+    x: 0.0
+    y: 0.0
+    zoom: 1.0
+  nodes:
+    context_extraction:
+      x: 100.0
+      y: 250.0
+    candidate_a:
+      x: 400.0
+      y: 120.0
+    candidate_b:
+      x: 400.0
+      y: 380.0
+    judge_selection:
+      x: 700.0
+      y: 250.0
+    verification:
+      x: 980.0
+      y: 250.0
+    sync:
+      x: 1260.0
+      y: 250.0
+
+parameters:
+  task_description:
+    type: string
+    description: Problem specification or complex challenge
+    required: true
+  project:
+    type: string
+    description: Target project name
+    default: General
+  candidate_a_model:
+    type: string
+    description: Model for Candidate A
+    default: anthropic/claude-3.7-sonnet
+  candidate_b_model:
+    type: string
+    description: Model for Candidate B
+    default: deepseek/deepseek-v4.1-flash
+  judge_model:
+    type: string
+    description: Evaluator model used to score diffs and pick winner
+    default: anthropic/claude-opus-5.5
+  dry_run:
+    type: boolean
+    description: Dry run simulation toggle
+    default: false
+
+steps:
+  # Step 1: Hermes Context Extraction
+  - id: context_extraction
+    name: Hermes Context Extraction
+    type: context_extraction
+    agent: hermes
+    dependencies: []
+    model: auto
+
+  # Step 2a: Candidate A Implementation (Isolated Worktree A)
+  - id: candidate_a
+    name: Candidate A (Claude Sonnet)
+    type: coding
+    agent: omp
+    dependencies:
+      - context_extraction
+    model: anthropic/claude-3.7-sonnet
+    config:
+      worktree_branch_suffix: candidate_a
+      timeout_seconds: 300
+
+  # Step 2b: Candidate B Implementation (Isolated Worktree B)
+  - id: candidate_b
+    name: Candidate B (DeepSeek Flash)
+    type: coding
+    agent: omp
+    dependencies:
+      - context_extraction
+    model: deepseek/deepseek-v4.1-flash
+    config:
+      worktree_branch_suffix: candidate_b
+      timeout_seconds: 300
+
+  # Step 3: Comparison, Quality Scoring & Winner Selection
+  - id: judge_selection
+    name: Multi-Candidate Comparison & Selection
+    type: compare
+    agent: evaluator
+    dependencies:
+      - candidate_a
+      - candidate_b
+    model: anthropic/claude-opus-5.5
+    config:
+      comparison_criteria:
+        - tests_passed
+        - diff_minimalism
+        - token_cost
+        - architectural_soundness
+      allow_manual_selection: true
+      merge_winner_into_run_branch: true
+
+  # Step 4: Verification of Winner
+  - id: verification
+    name: Winner Test Suite Verification
+    type: verification
+    agent: omp
+    dependencies:
+      - judge_selection
+    config:
+      max_retries: 2
+      auto_fix: true
+
+  # Step 5: Vault Sync
+  - id: sync
+    name: Vault Comparison Summary Sync
+    type: sync
+    agent: hermes
+    dependencies:
+      - verification

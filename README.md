@@ -136,6 +136,9 @@ Settings are maintained in [config/enki.config.json](file:///c:/Users/Christian%
       "hermes_model": "claude-3-5-sonnet",
       "omp_model": "claude-3-5-sonnet"
     }
+  },
+  "telemetry": {
+    "monthly_budget_usd": 25.0
   }
 }
 ```
@@ -149,6 +152,42 @@ OPENROUTER_API_KEY=sk-or-v1-...
 # OpenCode Zen Gateway (https://opencode.ai/zen)
 OPENCODE_API_KEY=your_opencode_zen_api_key_here
 ```
+
+---
+
+## 🖥️ User Interfaces
+
+### 1. Terminal UI (Textual)
+Enki features a complete 10-screen interactive Terminal UI built with Textual:
+```powershell
+py enki.py tui
+py enki.py tui --dry-run
+py enki.py tui --workflow feature_and_reviewer
+```
+Keybindings:
+- `1` - `0`: Navigate directly across all 10 screens (Dashboard, Start Run, Live Run, Payload Editor, Workflows, Models, Obsidian Browser, Telemetry, Run History, Finished Worktrees).
+- `q`: Quit application.
+
+### 2. Web UI (FastAPI + React)
+Enki provides a browser-based dashboard strictly bound to local loopback (`127.0.0.1`):
+```powershell
+py enki.py serve --port 8765
+```
+- **Local Address**: `http://127.0.0.1:8765`
+- **Interactive API Docs**: `http://127.0.0.1:8765/docs`
+- **Security**: Bound exclusively to loopback; non-local requests are rejected with HTTP 403. Sensitive `.env` API keys are automatically redacted from all API responses and logs.
+
+---
+
+## 🛡️ Budget Enforcement & Safety Guards
+
+- **Real-Time Budget Guard**: Intercepts model calls when monthly spend exceeds `$25.00` (or `monthly_budget_usd`), giving users 3 choices:
+  1. `continue`: Proceed beyond budget.
+  2. `pause`: Halt execution cleanly.
+  3. `switch_cheaper`: Switch model dynamically to a low-cost alternative (e.g. `deepseek/deepseek-chat`).
+- **Obsidian File Lock & Atomic Writes**: Cross-process lock prevents vault file corruption during concurrent operations. Checklist updates (`- [ ]` $\rightarrow$ `- [x]`) and activity logs are committed using atomic temp files.
+- **Inviolable Agent Boundaries**: Hermes is strictly prohibited from writing code; OMP is strictly prohibited from modifying Obsidian vault notes.
+- **Project Exclusions**: `Body.me App` is strictly excluded from all scans, runs, and pickers.
 
 ---
 

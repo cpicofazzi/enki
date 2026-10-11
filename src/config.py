@@ -111,3 +111,91 @@ def load_config() -> Dict[str, Any]:
         default_config["openrouter"]["omp_model"] = os.environ["ENKI_OMP_MODEL"]
 
     return default_config
+
+
+EXCLUDED_PROJECTS = {"Body.me App"}
+DEFAULT_BASE_BRANCH = "feature/enki-ui"
+
+
+def resolve_project_repo_path(
+    project_name: Optional[str] = None,
+    config: Optional[Dict[str, Any]] = None,
+    fallback_path: Optional[Path] = None,
+) -> Path:
+    """
+    Safely resolves repository path for a project with multi-tier fallback:
+    1. Config: projects[project_name]["repo_path"] (expanded and validated).
+    2. Environment Variable: ENKI_REPO_PATH_<PROJECT_SLUG> or ENKI_DEFAULT_REPO_PATH.
+    3. Adjacent Folder: ROOT_DIR.parent / project_name (if exists).
+    4. Safe Fallback: fallback_path if provided, else ROOT_DIR.
+    """
+    if config is None:
+        config = load_config()
+
+    projects = config.get("projects", {})
+
+    if project_name and project_name in projects:
+        proj_cfg = projects[project_name]
+        raw_path = proj_cfg.get("repo_path")
+        if raw_path:
+            p = Path(raw_path).expanduser()
+            if not p.is_absolute():
+                p = (ROOT_DIR / p).resolve()
+            if p.is_dir():
+                return p
+
+    # Tier 2: Environment variables
+    if project_name:
+        slug = project_name.upper().replace(" ", "_").replace("-", "_").replace(".", "_")
+        env_key = f"ENKI_REPO_PATH_{slug}"
+        if env_key in os.environ:
+            p = Path(os.environ[env_key]).expanduser().resolve()
+            if p.is_dir():
+                return p
+
+    if "ENKI_DEFAULT_REPO_PATH" in os.environ:
+        p = Path(os.environ["ENKI_DEFAULT_REPO_PATH"]).expanduser().resolve()
+        if p.is_dir():
+            return p
+
+    # Tier 3: Adjacent directory heuristic
+    if project_name:
+        adjacent = (ROOT_DIR.parent / project_name).resolve()
+        if adjacent.is_dir() and (adjacent / ".git").exists():
+            return adjacent
+
+    # Tier 4: Safe fallback
+    return (fallback_path or ROOT_DIR).resolve()
+
+
+def get_active_projects(config: Optional[Dict[str, Any]] = None) -> Dict[str, Dict[str, Any]]:
+    """
+    Returns only active projects, strictly filtering out excluded projects (e.g. Body.me App).
+    """
+    if config is None:
+        config = load_config()
+
+    projects = config.get("projects", {})
+    active: Dict[str, Dict[str, Any]] = {}
+
+    for name, p_cfg in projects.items():
+        if name in EXCLUDED_PROJECTS or p_cfg.get("excluded") is True:
+            continue
+        normalized = dict(p_cfg)
+        normalized["repo_path"] = str(resolve_project_repo_path(name, config))
+        active[name] = normalized
+
+    return active
+
+
+def get_project_config(
+    project_name: str,
+    config: Optional[Dict[str, Any]] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Returns normalized configuration for a specific project with resolved repo_path,
+    or None if excluded / not found.
+    """
+    active = get_active_projects(config)
+    return active.get(project_name)
+

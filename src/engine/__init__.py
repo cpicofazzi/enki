@@ -1,0 +1,100 @@
+"""
+src/engine/__init__.py
+Core Shared Engine package for Enki.
+Provides models, pub/sub event bus, run manager, and git worktree manager.
+"""
+
+from src.engine.models import (
+    RunStatus,
+    StepStatus,
+    EventType,
+    GateAction,
+    BudgetDecision,
+    WorktreeAction,
+    RoutingDecision,
+    GateState,
+    BudgetState,
+    RunTelemetry,
+    StepState,
+    RunEvent,
+    Run,
+    RunSummary,
+)
+from src.engine.events import EventBus, get_event_bus
+from src.engine.run_manager import RunManager
+from src.engine.worktree_manager import (
+    WorktreeManager,
+    RepoLock,
+    WorktreeError,
+    WorktreeNotFoundError,
+    WorktreeConcurrencyError,
+    WorktreeMergeConflictError,
+    DirtyWorkingTreeError,
+    WorktreeDiff,
+    ChangedFile,
+    MergeResult,
+    KeepResult,
+    DiscardResult,
+)
+from src.engine.workflow_parser import (
+    WorkflowParser,
+    WorkflowDefinition,
+    WorkflowError,
+    WorkflowSchemaError,
+    WorkflowDAGError,
+    detect_cycle_and_sort,
+    load_workflow,
+    parse_workflow,
+    save_workflow,
+)
+from src.engine.workflow_engine import (
+    WorkflowEngine,
+    StepExecutionContext,
+    WorkflowExecutionError,
+    GateSuspendedException,
+)
+
+__all__ = [
+    "RunStatus",
+    "StepStatus",
+    "EventType",
+    "GateAction",
+    "BudgetDecision",
+    "WorktreeAction",
+    "RoutingDecision",
+    "GateState",
+    "BudgetState",
+    "RunTelemetry",
+    "StepState",
+    "RunEvent",
+    "Run",
+    "RunSummary",
+    "EventBus",
+    "get_event_bus",
+    "RunManager",
+    "WorktreeManager",
+    "RepoLock",
+    "WorktreeError",
+    "WorktreeNotFoundError",
+    "WorktreeConcurrencyError",
+    "WorktreeMergeConflictError",
+    "DirtyWorkingTreeError",
+    "WorktreeDiff",
+    "ChangedFile",
+    "MergeResult",
+    "KeepResult",
+    "DiscardResult",
+    "WorkflowParser",
+    "WorkflowDefinition",
+    "WorkflowError",
+    "WorkflowSchemaError",
+    "WorkflowDAGError",
+    "detect_cycle_and_sort",
+    "load_workflow",
+    "parse_workflow",
+    "save_workflow",
+    "WorkflowEngine",
+    "StepExecutionContext",
+    "WorkflowExecutionError",
+    "GateSuspendedException",
+]

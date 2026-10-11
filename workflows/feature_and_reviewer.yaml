@@ -1,0 +1,108 @@
+# ==============================================================================
+# Enki Workflow: Feature Implementation & Reviewer Loop
+# Spec -> Implementation -> Reviewer Loop -> Verification -> Sync
+# ==============================================================================
+id: feature_and_reviewer
+name: Feature Implementation & Reviewer Loop
+description: Coding and verification workflow with an automated AI code review step that evaluates code diffs against architectural rules and loops back to coding if changes are requested.
+version: 1.0.0
+author: Enki Core
+
+# Visual Builder Canvas Layout (React Flow canvas coordinates)
+canvas:
+  viewport:
+    x: 0.0
+    y: 0.0
+    zoom: 1.0
+  nodes:
+    context_extraction:
+      x: 100.0
+      y: 200.0
+    coding:
+      x: 380.0
+      y: 200.0
+    review:
+      x: 660.0
+      y: 200.0
+    verification:
+      x: 940.0
+      y: 200.0
+    sync:
+      x: 1220.0
+      y: 200.0
+
+parameters:
+  task_description:
+    type: string
+    description: Feature requirements and acceptance criteria
+    required: true
+  project:
+    type: string
+    description: Target project name
+    default: General
+  dry_run:
+    type: boolean
+    description: Enable simulation mode
+    default: false
+  reviewer_model:
+    type: string
+    description: Model to use for code review evaluation
+    default: anthropic/claude-opus-5.5
+
+steps:
+  # Step 1: Context Extraction
+  - id: context_extraction
+    name: Hermes Context Extraction
+    type: context_extraction
+    agent: hermes
+    dependencies: []
+    model: auto
+
+  # Step 2: Implementation Handshake
+  - id: coding
+    name: OMP Code Implementation
+    type: coding
+    agent: omp
+    dependencies:
+      - context_extraction
+    model: auto
+    config:
+      lsp_enabled: true
+      timeout_seconds: 300
+
+  # Step 3: AI Code Reviewer Evaluation
+  - id: review
+    name: Architectural & Quality Review
+    type: review
+    agent: evaluator
+    dependencies:
+      - coding
+    model: anthropic/claude-opus-5.5
+    config:
+      rubric:
+        - clean_code
+        - no_regressions
+        - safety_boundaries
+        - architecture_compliance
+      max_review_loops: 2
+      feedback_target_step: coding
+    on_failure: retry
+
+  # Step 4: Verification Suite
+  - id: verification
+    name: Test Suite Verification
+    type: verification
+    agent: omp
+    dependencies:
+      - review
+    config:
+      max_retries: 3
+      auto_fix: true
+
+  # Step 5: Vault Documentation Sync
+  - id: sync
+    name: Vault Documentation Sync
+    type: sync
+    agent: hermes
+    dependencies:
+      - verification

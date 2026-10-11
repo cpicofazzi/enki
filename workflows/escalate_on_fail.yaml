@@ -1,0 +1,98 @@
+# ==============================================================================
+# Enki Workflow: Cost-Optimized with Frontier Escalation
+# Cheap Model First -> Auto-Escalates to Frontier Model on Repeated Failures
+# ==============================================================================
+id: escalate_on_fail
+name: Cost-Optimized with Frontier Escalation
+description: Initiates code implementation with an ultra-efficient value model and automatically escalates to a top-tier frontier model if the initial implementation fails test verification.
+version: 1.0.0
+author: Enki Core
+
+# Visual Builder Canvas Layout (React Flow canvas coordinates)
+canvas:
+  viewport:
+    x: 0.0
+    y: 0.0
+    zoom: 1.0
+  nodes:
+    context_extraction:
+      x: 100.0
+      y: 200.0
+    coding:
+      x: 380.0
+      y: 200.0
+    verification:
+      x: 660.0
+      y: 200.0
+    sync:
+      x: 940.0
+      y: 200.0
+
+parameters:
+  task_description:
+    type: string
+    description: Bug or feature description
+    required: true
+  project:
+    type: string
+    description: Target project name
+    default: General
+  initial_model:
+    type: string
+    description: Low-cost value model for first attempt
+    default: z-ai/glm-5.3-flash
+  frontier_model:
+    type: string
+    description: High-intelligence model to escalate to upon failure
+    default: anthropic/claude-opus-5.5
+  dry_run:
+    type: boolean
+    description: Dry run simulation toggle
+    default: false
+
+steps:
+  # Step 1: Hermes Context Extraction
+  - id: context_extraction
+    name: Hermes Context Extraction
+    type: context_extraction
+    agent: hermes
+    dependencies: []
+    model: auto
+
+  # Step 2: Value-Tier Coding with Configured Frontier Escalation
+  - id: coding
+    name: Value-Tier Coding with Escalation
+    type: coding
+    agent: omp
+    dependencies:
+      - context_extraction
+    model: z-ai/glm-5.3-flash
+    retry:
+      max_retries: 2
+      backoff_seconds: 1.0
+      escalate_to: anthropic/claude-opus-5.5
+      escalate_after_attempts: 1
+    escalate:
+      enabled: true
+      model: anthropic/claude-opus-5.5
+      after_attempts: 1
+    on_failure: escalate
+
+  # Step 3: Verification Loop
+  - id: verification
+    name: Test Verification Loop
+    type: verification
+    agent: omp
+    dependencies:
+      - coding
+    config:
+      max_retries: 2
+      auto_fix: true
+
+  # Step 4: Vault Sync
+  - id: sync
+    name: Vault Documentation Sync
+    type: sync
+    agent: hermes
+    dependencies:
+      - verification

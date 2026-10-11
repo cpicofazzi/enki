@@ -33,27 +33,27 @@ def resolve_preset(args, cfg):
 def cmd_run(args):
     cfg = load_config()
     gw, md = resolve_preset(args, cfg)
-    orchestrator = EnkiOrchestrator(gateway=gw)
+    orchestrator = EnkiOrchestrator(gateway=gw, dry_run=getattr(args, "dry_run", False))
     orchestrator.run_pipeline(args.task, model_override=md)
 
 def cmd_context(args):
     cfg = load_config()
     gw, md = resolve_preset(args, cfg)
-    orchestrator = EnkiOrchestrator(gateway=gw)
+    orchestrator = EnkiOrchestrator(gateway=gw, dry_run=getattr(args, "dry_run", False))
     orchestrator.step_1_context_extraction(args.task, model_override=md)
 
 def cmd_handshake(args):
-    orchestrator = EnkiOrchestrator()
+    orchestrator = EnkiOrchestrator(dry_run=getattr(args, "dry_run", False))
     payload_p = Path(args.payload) if args.payload else PAYLOAD_FILE
     orchestrator.step_2_execution_handshake(payload_p)
 
 def cmd_verify(args):
-    orchestrator = EnkiOrchestrator()
+    orchestrator = EnkiOrchestrator(dry_run=getattr(args, "dry_run", False))
     payload_p = Path(args.payload) if args.payload else PAYLOAD_FILE
     orchestrator.step_3_verification(payload_p)
 
 def cmd_sync(args):
-    orchestrator = EnkiOrchestrator()
+    orchestrator = EnkiOrchestrator(dry_run=getattr(args, "dry_run", False))
     payload_p = Path(args.payload) if args.payload else PAYLOAD_FILE
     orchestrator.step_4_sync(payload_p)
 
@@ -90,6 +90,23 @@ def cmd_gateway(args):
         except Exception as e:
             print(f"Failed to update config: {e}")
         return
+
+    # Bare 'enki gateway' displays active gateway and available choices
+    print("=" * 64)
+    print(" ENKI AI MODEL GATEWAYS")
+    print("=" * 64)
+    active_name = gateways.get(active, {}).get("name", active)
+    print(f" Active Gateway : {active_name} (`{active}`)")
+    print("-" * 64)
+    print(" Available Gateways:")
+    for gw_id, gw_info in gateways.items():
+        is_active = " [ACTIVE]" if gw_id == active else ""
+        print(f"   * {gw_info.get('name', gw_id)} (`{gw_id}`){is_active}")
+        print(f"     URL         : {gw_info.get('base_url')}")
+        print(f"     Hermes Model: {gw_info.get('hermes_model')}")
+        print(f"     OMP Model   : {gw_info.get('omp_model')}")
+    print("=" * 64)
+    print(" To switch gateway: enki gateway --set <gateway_id>\n")
 
 def cmd_models(args):
     cfg = load_config()
@@ -264,6 +281,23 @@ def cmd_status(args):
         print(" Active Payload : (No context_payload.json generated yet)")
     print("=" * 64)
 
+def cmd_tui(args):
+    """Launch interactive Terminal UI (Textual)."""
+    from src.ui.tui.app import EnkiTUIApp
+    app = EnkiTUIApp(
+        dry_run=getattr(args, "dry_run", False),
+        initial_workflow=getattr(args, "workflow", "four_step_pipeline")
+    )
+    app.run()
+
+def cmd_serve(args):
+    """Launch Web UI server (FastAPI + React) strictly on loopback (F34, F35)."""
+    from src.web.server import run_server
+    host = getattr(args, "host", "127.0.0.1")
+    port = getattr(args, "port", 8765)
+    reload = getattr(args, "reload", False)
+    run_server(host=host, port=port, reload=reload)
+
 def main():
     parser = argparse.ArgumentParser(
         description="Enki: Dual-Agent Command Hub for Antigravity, Hermes & Oh My Pi (OMP)",
@@ -287,6 +321,7 @@ Examples:
     p_run.add_argument("--gateway", type=str, default="", help="Override gateway (openrouter | opencode_zen)")
     p_run.add_argument("--model", type=str, default="", help="Override model for this run")
     p_run.add_argument("--preset", choices=["frontier", "sota", "value_leader", "cost_optimal", "opencode_leader", "opencode_ultra_value", "opencode_pro", "free_tier"], default="", help="Select preset configuration")
+    p_run.add_argument("--dry-run", action="store_true", help="Simulate pipeline without real model or OMP spend")
     p_run.set_defaults(func=cmd_run)
 
     # context
@@ -295,21 +330,25 @@ Examples:
     p_ctx.add_argument("--gateway", type=str, default="", help="Override gateway (openrouter | opencode_zen)")
     p_ctx.add_argument("--model", type=str, default="", help="Override model for context extraction")
     p_ctx.add_argument("--preset", choices=["frontier", "sota", "value_leader", "cost_optimal", "opencode_leader", "opencode_ultra_value", "opencode_pro", "free_tier"], default="", help="Select preset configuration")
+    p_ctx.add_argument("--dry-run", action="store_true", help="Simulate context extraction without model spend")
     p_ctx.set_defaults(func=cmd_context)
 
     # handshake
     p_hs = subparsers.add_parser("handshake", help="Step 2: Feed context_payload.json to OMP")
     p_hs.add_argument("--payload", type=str, default="", help="Path to context_payload.json")
+    p_hs.add_argument("--dry-run", action="store_true", help="Simulate handshake without running OMP")
     p_hs.set_defaults(func=cmd_handshake)
 
     # verify
     p_vf = subparsers.add_parser("verify", help="Step 3: Run OMP test suites and verification")
     p_vf.add_argument("--payload", type=str, default="", help="Path to context_payload.json")
+    p_vf.add_argument("--dry-run", action="store_true", help="Simulate verification loop")
     p_vf.set_defaults(func=cmd_verify)
 
     # sync
     p_sc = subparsers.add_parser("sync", help="Step 4: Hermes logs completion to Obsidian")
     p_sc.add_argument("--payload", type=str, default="", help="Path to context_payload.json")
+    p_sc.add_argument("--dry-run", action="store_true", help="Simulate completion logging")
     p_sc.set_defaults(func=cmd_sync)
 
     # gateway
@@ -338,6 +377,19 @@ Examples:
     # status
     p_st = subparsers.add_parser("status", help="Show current Enki hub status and active gateway")
     p_st.set_defaults(func=cmd_status)
+
+    # tui
+    p_tui = subparsers.add_parser("tui", help="Launch interactive Terminal UI (Textual)")
+    p_tui.add_argument("--dry-run", action="store_true", help="Launch TUI in simulation mode ($0.00 spend)")
+    p_tui.add_argument("--workflow", type=str, default="four_step_pipeline", help="Pre-select initial workflow template")
+    p_tui.set_defaults(func=cmd_tui)
+
+    # serve
+    p_srv = subparsers.add_parser("serve", help="Launch Web UI server (FastAPI + React)")
+    p_srv.add_argument("--host", type=str, default="127.0.0.1", help="Host interface (must be loopback 127.0.0.1)")
+    p_srv.add_argument("--port", type=int, default=8765, help="Port to listen on (default: 8765)")
+    p_srv.add_argument("--reload", action="store_true", help="Enable hot reload for development")
+    p_srv.set_defaults(func=cmd_serve)
 
     args = parser.parse_args()
     if not args.subcommand:

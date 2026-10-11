@@ -1,0 +1,302 @@
+/* ==============================================================================
+   ENKI TUI STYLESHEET (enki.tcss)
+   Dark Theme Design System for Textual 8.2.8
+   Palette:
+     surface-ground: #0d1117
+     surface-panel:  #161b22
+     surface-hover:  #21262d
+     border-normal:  #30363d
+     border-focus:   #58a6ff
+     accent-primary: #1f6feb
+     accent-success: #238636
+     accent-warning: #d29922
+     accent-danger:  #da3633
+     text-primary:   #f0f6fc
+     text-muted:     #8b949e
+   ============================================================================== */
+
+Screen {
+    background: #0d1117;
+    color: #f0f6fc;
+}
+
+/* --- HeaderBar --- */
+HeaderBar {
+    dock: top;
+    height: 3;
+    background: #161b22;
+    border-bottom: solid #30363d;
+    padding: 0 1;
+}
+
+#header_hub_title {
+    color: #58a6ff;
+    text-style: bold;
+    width: 28;
+    content-align: left middle;
+}
+
+#header_gateway_badge {
+    color: #8b949e;
+    width: 32;
+    content-align: left middle;
+}
+
+#header_spend_pill {
+    color: #238636;
+    text-style: bold;
+    width: 28;
+    content-align: center middle;
+}
+
+#header_nav_hint {
+    color: #8b949e;
+    content-align: right middle;
+}
+
+/* --- Footer & Action Bars --- */
+.action-bar {
+    dock: bottom;
+    height: 3;
+    background: #161b22;
+    border-top: solid #30363d;
+    padding: 0 1;
+    align: left middle;
+}
+
+/* --- Split Panes --- */
+.pane-15 { width: 15%; }
+.pane-35 { width: 35%; }
+.pane-40 { width: 40%; }
+.pane-45 { width: 45%; }
+.pane-50 { width: 50%; }
+.pane-60 { width: 60%; }
+.pane-65 { width: 65%; }
+
+.split-container {
+    height: 1fr;
+    width: 100%;
+}
+
+.pane-container {
+    height: 100%;
+    border: solid #30363d;
+    background: #161b22;
+    padding: 1;
+}
+
+/* --- Cards & Containers --- */
+.card {
+    background: #161b22;
+    border: solid #30363d;
+    padding: 1;
+    margin: 0 0 1 0;
+}
+
+.card:focus-within {
+    border: solid #58a6ff;
+}
+
+.section-title {
+    color: #58a6ff;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+/* --- Form Controls --- */
+Input {
+    background: #0d1117;
+    color: #f0f6fc;
+    border: solid #30363d;
+    margin-bottom: 1;
+}
+
+Input:focus {
+    border: solid #58a6ff;
+}
+
+TextArea {
+    background: #0d1117;
+    color: #f0f6fc;
+    border: solid #30363d;
+    height: 8;
+    margin-bottom: 1;
+}
+
+TextArea:focus {
+    border: solid #58a6ff;
+}
+
+Select {
+    background: #0d1117;
+    color: #f0f6fc;
+    border: solid #30363d;
+    margin-bottom: 1;
+}
+
+Select:focus {
+    border: solid #58a6ff;
+}
+
+Button {
+    background: #21262d;
+    color: #f0f6fc;
+    border: solid #30363d;
+    margin-right: 1;
+}
+
+Button:hover {
+    background: #30363d;
+}
+
+Button:focus {
+    border: double #58a6ff;
+}
+
+Button.-primary, Button.primary {
+    background: #1f6feb;
+    color: #ffffff;
+    text-style: bold;
+}
+
+Button.-success, Button.success {
+    background: #238636;
+    color: #ffffff;
+    text-style: bold;
+}
+
+Button.-warning, Button.warning {
+    background: #d29922;
+    color: #0d1117;
+    text-style: bold;
+}
+
+Button.-error, Button.error {
+    background: #da3633;
+    color: #ffffff;
+    text-style: bold;
+}
+
+Checkbox {
+    margin-right: 2;
+    margin-bottom: 1;
+}
+
+Switch {
+    margin-right: 1;
+}
+
+/* --- Data Tables --- */
+DataTable {
+    background: #0d1117;
+    border: solid #30363d;
+    height: 1fr;
+}
+
+DataTable > .datatable--header {
+    background: #161b22;
+    color: #58a6ff;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #1f6feb;
+    color: #ffffff;
+}
+
+/* --- Tree & RichLog --- */
+Tree {
+    background: #0d1117;
+    border: solid #30363d;
+    height: 1fr;
+}
+
+RichLog {
+    background: #0d1117;
+    border: solid #30363d;
+    color: #f0f6fc;
+    height: 1fr;
+}
+
+/* --- Progress Bar --- */
+ProgressBar {
+    height: 1;
+    margin: 1 0;
+}
+
+ProgressBar > .bar--bar {
+    color: #238636;
+    background: #21262d;
+}
+
+ProgressBar.-warning > .bar--bar {
+    color: #d29922;
+}
+
+ProgressBar.-error > .bar--bar {
+    color: #da3633;
+}
+
+/* --- Badges & Status Pills --- */
+.badge-valid {
+    color: #238636;
+    text-style: bold;
+}
+
+.badge-invalid {
+    color: #da3633;
+    text-style: bold;
+}
+
+.badge-warning {
+    color: #d29922;
+    text-style: bold;
+}
+
+.badge-running {
+    color: #58a6ff;
+    text-style: bold;
+}
+
+/* --- Modals --- */
+ModalScreen {
+    align: center middle;
+    background: rgba(13, 17, 23, 0.85);
+}
+
+.modal-dialog {
+    width: 76;
+    height: auto;
+    max-height: 85%;
+    border: thick #58a6ff;
+    background: #161b22;
+    padding: 1 2;
+}
+
+.modal-dialog.gate-dialog {
+    border: thick #d29922;
+}
+
+.modal-dialog.budget-dialog {
+    border: thick #da3633;
+}
+
+.modal-dialog.confirm-dialog {
+    border: thick #1f6feb;
+}
+
+.modal-dialog.danger-dialog {
+    border: thick #da3633;
+}
+
+.modal-title {
+    text-style: bold;
+    color: #58a6ff;
+    margin-bottom: 1;
+}
+
+.modal-btn-row {
+    width: 100%;
+    align: right middle;
+    margin-top: 1;
+}
