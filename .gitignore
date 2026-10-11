@@ -14,8 +14,15 @@ ENV/
 data/*.db
 data/*.sqlite
 data/*.json
+data/runs/
 context_payload.json
 *.log
+
+# Web node_modules and cache
+web/node_modules/
+
+# Agent teamwork internal scratch files
+.agents/teamwork/
 
 # OS files
 Thumbs.db

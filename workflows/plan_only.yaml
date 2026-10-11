@@ -1,0 +1,80 @@
+# ==============================================================================
+# Enki Workflow: Architecture & Context Plan Only
+# Vault Context Extraction & Architecture Plan Without Code Generation
+# ==============================================================================
+id: plan_only
+name: Architecture & Context Plan Only
+description: Extracts context from Obsidian vault notes and generates comprehensive technical specifications and architectural plans without executing code generation or modifying repository files.
+version: 1.0.0
+author: Enki Core
+
+# Visual Builder Canvas Layout (React Flow canvas coordinates)
+canvas:
+  viewport:
+    x: 0.0
+    y: 0.0
+    zoom: 1.0
+  nodes:
+    context_extraction:
+      x: 100.0
+      y: 200.0
+    planning:
+      x: 420.0
+      y: 200.0
+    sync:
+      x: 740.0
+      y: 200.0
+
+parameters:
+  task_description:
+    type: string
+    description: Architectural inquiry or design objective
+    required: true
+  project:
+    type: string
+    description: Target project name
+    default: General
+  planning_model:
+    type: string
+    description: Model to use for deep architecture planning
+    default: anthropic/claude-opus-5.5
+  dry_run:
+    type: boolean
+    description: Dry run simulation toggle
+    default: false
+
+steps:
+  # Step 1: Hermes Context Extraction
+  - id: context_extraction
+    name: Hermes Vault Ingestion
+    type: context_extraction
+    agent: hermes
+    dependencies: []
+    model: auto
+    config:
+      vault_search_limit: 15
+      include_knowledge_notes: true
+
+  # Step 2: Architecture Planning & Technical Spec Generation
+  - id: planning
+    name: Architecture Planning & Spec Generation
+    type: planning
+    agent: hermes
+    dependencies:
+      - context_extraction
+    model: anthropic/claude-opus-5.5
+    config:
+      output_filename: architecture_plan.md
+      include_migration_plan: true
+      include_risk_matrix: true
+
+  # Step 3: Plan Ingestion into Obsidian Vault
+  - id: sync
+    name: Plan Ingestion into Vault
+    type: sync
+    agent: hermes
+    dependencies:
+      - planning
+    config:
+      target_vault_folder: 50_Knowledge
+      create_task_entry: false

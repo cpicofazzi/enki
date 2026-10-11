@@ -1,10 +1,18 @@
+"""
+src/orchestrator.py
+Backward-compatible facade wrapping the Enki Shared Engine.
+Preserves all legacy CLI method signatures while integrating non-blocking streaming,
+per-run cost tracking, and iterative verification.
+"""
+
 import os
 import sys
 import json
 import uuid
+import inspect
 import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple, List
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
@@ -12,23 +20,53 @@ if str(ROOT_DIR) not in sys.path:
 
 from src.config import load_config
 from src.openrouter import OpenRouterClient
-from src.token_tracker import record_usage, get_summary
+from src.token_tracker import get_run_telemetry, record_usage
 from src.obsidian_indexer import ObsidianIndexer
 from src.omp_bridge import OMPBridge
 
 PAYLOAD_FILE = ROOT_DIR / "context_payload.json"
 
+
 class EnkiOrchestrator:
-    def __init__(self, gateway: Optional[str] = None):
+    def __init__(
+        self,
+        gateway: Optional[str] = None,
+        dry_run: bool = False,
+        run_id: Optional[str] = None
+    ):
         self.config = load_config()
         self.gateway_name = gateway or self.config.get("active_gateway", "openrouter")
         self.openrouter = OpenRouterClient(gateway_name=self.gateway_name)
         self.indexer = ObsidianIndexer()
         self.omp = OMPBridge()
+        self.dry_run = dry_run
+        self.run_id = run_id or f"run_{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+        self.event_bus = None
+        self._init_event_bus()
 
-    def step_1_context_extraction(self, task_description: str, model_override: Optional[str] = None) -> Dict[str, Any]:
+    def _init_event_bus(self) -> None:
+        """Attempts to attach to engine EventBus if available."""
+        try:
+            from src.engine.events import get_event_bus
+            self.event_bus = get_event_bus()
+        except ImportError:
+            self.event_bus = None
+
+    def _get_task_telemetry(self, task_id: str) -> Tuple[int, float]:
         """
-        Step 1: Hermes crawls relevant docs/notes and outputs context_payload.json
+        Derives EXACT task tokens and cost from SQLite, fixing the 30-day sum bug (Gap 5).
+        """
+        telemetry_data = get_run_telemetry(task_id)
+        return telemetry_data["total_tokens"], telemetry_data["total_cost_usd"]
+
+    def step_1_context_extraction(
+        self,
+        task_description: str,
+        model_override: Optional[str] = None,
+        output_path: Optional[Path] = None
+    ) -> Dict[str, Any]:
+        """
+        Step 1: Hermes crawls Obsidian vault and outputs context_payload.json.
         Rule: Hermes NEVER writes production code.
         """
         print(f"\n[Step 1: Context Extraction] Hermes indexing Obsidian vault for: '{task_description}'...")
@@ -74,41 +112,60 @@ class EnkiOrchestrator:
             f"Detected Project Hint: {context_data.get('detected_project', 'General')}\n"
         )
 
-        task_id = f"task_{uuid.uuid4().hex[:8]}"
-        response = self.openrouter.complete(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
-            ],
-            model=model_override,
-            agent_role="hermes",
-            task_id=task_id
-        )
-
-        # Parse JSON from model or synthesize fallback
-        content = response.get("content", "").strip()
+        task_id = self.run_id
         parsed_spec = None
-        if "{" in content and "}" in content:
-            try:
-                json_str = content[content.find("{"):content.rfind("}")+1]
-                parsed_spec = json.loads(json_str)
-            except Exception:
-                pass
 
-        # Check if detected project has specific overrides in enki.config.json
+        if self.dry_run:
+            print("  -> [Dry-Run] Simulating Hermes completion...")
+            target_lang = context_data.get("inferred_language", "python")
+            parsed_spec = {
+                "title": task_description,
+                "requirements": [f"Implement feature request: {task_description}"],
+                "engineering_constraints": {
+                    "language": target_lang,
+                    "target_framework": context_data.get("detected_project", "General"),
+                    "lsp_server": f"{target_lang}-lsp",
+                    "forbidden_patterns": ["Avoid hardcoded credentials"],
+                    "design_patterns": ["Clean architecture"],
+                    "file_scope": []
+                },
+                "acceptance_criteria": {
+                    "test_commands": ["py -m pytest -q"],
+                    "success_conditions": ["All unit tests pass with exit code 0"]
+                }
+            }
+        else:
+            response = self.openrouter.complete(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                model=model_override,
+                agent_role="hermes",
+                task_id=task_id
+            )
+            content = response.get("content", "").strip()
+            if "{" in content and "}" in content:
+                try:
+                    json_str = content[content.find("{"):content.rfind("}")+1]
+                    parsed_spec = json.loads(json_str)
+                except Exception:
+                    pass
+
+        # Check project overrides in config
         projects_cfg = self.config.get("projects", {})
         proj_override = projects_cfg.get(context_data.get("detected_project", ""), {})
-        
         target_lang = proj_override.get("language", context_data["inferred_language"])
         default_tests = proj_override.get("test_commands", ["py -m pytest -q" if target_lang == "python" else "cargo test"])
 
+        # Fallback synthesizer if parsing failed
         if not parsed_spec:
             parsed_spec = {
                 "title": task_description,
                 "requirements": [f"Implement feature request: {task_description}"],
                 "engineering_constraints": {
                     "language": target_lang,
-                    "target_framework": context_data.get('detected_project') or "standard",
+                    "target_framework": context_data.get("detected_project") or "standard",
                     "lsp_server": f"{target_lang}-lsp",
                     "forbidden_patterns": ["Avoid hardcoded credentials", "No unverified external dependencies"],
                     "design_patterns": ["Clean architecture", "Type annotations"],
@@ -134,16 +191,26 @@ class EnkiOrchestrator:
             ]
         }
 
-        with open(PAYLOAD_FILE, "w", encoding="utf-8") as f:
+        # Save to target output and legacy PAYLOAD_FILE
+        target_path = output_path or PAYLOAD_FILE
+        with open(target_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
 
-        print(f"  -> Generated {PAYLOAD_FILE.name} (Task ID: {task_id})")
+        if target_path != PAYLOAD_FILE:
+            with open(PAYLOAD_FILE, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
+
+        print(f"  -> Generated {target_path.name} (Task ID: {task_id})")
         return payload
 
-    def step_2_execution_handshake(self, payload_path: Optional[Path] = None) -> Dict[str, Any]:
+    def step_2_execution_handshake(
+        self,
+        payload_path: Optional[Path] = None,
+        working_dir: Optional[Path] = None,
+        model_override: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Step 2: Antigravity feeds payload to OMP in the terminal workspace via CLI:
-        omp "Implement feature matching context_payload.json"
+        Step 2: Feeds payload to OMP via streaming bridge.
         """
         p_path = payload_path or PAYLOAD_FILE
         if not p_path.is_file():
@@ -154,22 +221,42 @@ class EnkiOrchestrator:
 
         print(f"\n[Step 2: Execution Handshake] Dispatching to Oh My Pi (OMP)...")
         print(f"  -> Command: omp \"Implement feature matching {p_path.name}\"")
-        
-        result = self.omp.execute_handshake(p_path)
+
+        # Safely pass keyword arguments supported by OMPBridge (including test mocks)
+        sig = inspect.signature(self.omp.execute_handshake)
+        kwargs: Dict[str, Any] = {}
+        if "working_dir" in sig.parameters:
+            kwargs["working_dir"] = working_dir
+        if "model" in sig.parameters:
+            kwargs["model"] = model_override
+        if "run_id" in sig.parameters:
+            kwargs["run_id"] = self.run_id
+        if "event_bus" in sig.parameters:
+            kwargs["event_bus"] = self.event_bus
+        if "dry_run" in sig.parameters:
+            kwargs["dry_run"] = self.dry_run
+
+        result = self.omp.execute_handshake(p_path, **kwargs)
+
         payload["status"] = "dispatched" if result.get("exit_code") == 0 else "failed"
-        
         with open(p_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
 
         print(f"  -> OMP Status: {result.get('status')}")
         if result.get("stdout"):
-            for line in result["stdout"].splitlines()[:10]:
+            for line in result["stdout"].splitlines()[:5]:
                 print(f"     {line}")
         return result
 
-    def step_3_verification(self, payload_path: Optional[Path] = None) -> Dict[str, Any]:
+    def step_3_verification(
+        self,
+        payload_path: Optional[Path] = None,
+        working_dir: Optional[Path] = None,
+        max_retries: int = 3,
+        model_override: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Step 3: OMP iterates using local compilers and test suites until execution clears.
+        Step 3: Iterative verification loop feeding failures back to OMP until green.
         """
         p_path = payload_path or PAYLOAD_FILE
         if not p_path.is_file():
@@ -178,14 +265,23 @@ class EnkiOrchestrator:
         with open(p_path, "r", encoding="utf-8") as f:
             payload = json.load(f)
 
-        test_cmds = payload.get("acceptance_criteria", {}).get("test_commands", [])
+        test_cmds = payload.get("acceptance_criteria", {}).get("test_commands", ["py -m pytest -q"])
         print(f"\n[Step 3: Verification] Running OMP verification loop on {len(test_cmds)} test command(s)...")
-        for cmd in test_cmds:
-            print(f"  -> Executing: {cmd}")
 
-        all_passed, results = self.omp.run_verification(test_cmds)
+        # Run verification loop
+        res = self.omp.run_verification_loop(
+            test_commands=test_cmds,
+            working_dir=working_dir,
+            max_retries=max_retries,
+            model=model_override,
+            run_id=self.run_id,
+            event_bus=self.event_bus,
+            dry_run=self.dry_run
+        )
+
+        all_passed = res["all_passed"]
         status_str = "PASSED" if all_passed else "FAILED"
-        print(f"  -> Verification Result: {status_str}")
+        print(f"  -> Verification Result: {status_str} ({res['iterations']} OMP iterations recorded)")
 
         payload["status"] = "verified" if all_passed else "failed"
         with open(p_path, "w", encoding="utf-8") as f:
@@ -193,13 +289,19 @@ class EnkiOrchestrator:
 
         return {
             "all_passed": all_passed,
-            "results": results,
-            "status": status_str
+            "results": res["results"],
+            "status": status_str,
+            "iterations": res["iterations"],
+            "history": res["history"]
         }
 
-    def step_4_sync(self, payload_path: Optional[Path] = None, verification_info: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def step_4_sync(
+        self,
+        payload_path: Optional[Path] = None,
+        verification_info: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
-        Step 4: Hermes logs completion & updates Obsidian vault.
+        Step 4: Hermes logs completion with isolated per-run cost to Obsidian.
         """
         p_path = payload_path or PAYLOAD_FILE
         if not p_path.is_file():
@@ -209,13 +311,11 @@ class EnkiOrchestrator:
             payload = json.load(f)
 
         print(f"\n[Step 4: Sync & Logging] Hermes syncing completion to Obsidian...")
-        task_id = payload.get("task_id", "unknown")
+        task_id = payload.get("task_id", self.run_id)
         title = payload.get("title", "Untitled Task")
-        
-        # Summary metrics
-        summary_data = get_summary()
-        recent_tok = summary_data.get("total_tokens", 0)
-        recent_cost = summary_data.get("total_cost_usd", 0.0)
+
+        # FIX GAP 5: Fetch exact run telemetry from SQLite rather than 30-day sum
+        run_tokens, run_cost = self._get_task_telemetry(task_id)
 
         v_status = verification_info.get("status", "PASSED") if verification_info else "PASSED"
         summary_text = (
@@ -225,12 +325,29 @@ class EnkiOrchestrator:
             f"- Handshake Target: Oh My Pi (OMP) CLI\n"
         )
 
+        if self.dry_run:
+            print("  -> [Dry-Run] Simulating Obsidian vault sync (no vault write).")
+            payload["status"] = "completed"
+            with open(p_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
+
+            simulated_log = "simulated/Enki_Activity_Log.md"
+            print(f"  -> Activity logged to Obsidian: {simulated_log}")
+            print(f"  -> Task status updated: COMPLETED\n")
+            return {
+                "task_id": task_id,
+                "log_path": simulated_log,
+                "status": "completed",
+                "task_tokens": run_tokens,
+                "task_cost_usd": run_cost
+            }
+
         log_path = self.indexer.log_completion(
             task_id=task_id,
             title=title,
             summary=summary_text,
-            tokens_used=recent_tok,
-            cost_usd=recent_cost,
+            tokens_used=run_tokens,
+            cost_usd=run_cost,
             test_status=v_status
         )
 
@@ -243,25 +360,24 @@ class EnkiOrchestrator:
         return {
             "task_id": task_id,
             "log_path": str(log_path),
-            "status": "completed"
+            "status": "completed",
+            "task_tokens": run_tokens,
+            "task_cost_usd": run_cost
         }
 
-    def run_pipeline(self, task_description: str, model_override: Optional[str] = None) -> Dict[str, Any]:
+    def run_pipeline(
+        self,
+        task_description: str,
+        model_override: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Executes the full 4-step pipeline end-to-end."""
         print("=" * 64)
-        print(f" ENKI COMMAND HUB: EXECUTING 4-STEP PIPELINE")
+        print(" ENKI COMMAND HUB: EXECUTING 4-STEP PIPELINE")
         print("=" * 64)
-        
-        # Step 1
+
         payload = self.step_1_context_extraction(task_description, model_override=model_override)
-        
-        # Step 2
         handshake_res = self.step_2_execution_handshake(PAYLOAD_FILE)
-        
-        # Step 3
         verification_res = self.step_3_verification(PAYLOAD_FILE)
-        
-        # Step 4
         sync_res = self.step_4_sync(PAYLOAD_FILE, verification_res)
 
         print("=" * 64)

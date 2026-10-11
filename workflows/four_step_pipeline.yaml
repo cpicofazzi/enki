@@ -1,0 +1,121 @@
+# ==============================================================================
+# Enki Workflow: Standard 4-Step Pipeline
+# Hermes Context Extraction -> OMP Coding -> OMP Verification -> Hermes Sync
+# ==============================================================================
+id: four_step_pipeline
+name: Standard 4-Step Pipeline
+description: Standard Enki pipeline with Hermes context extraction, OMP code implementation handshake, local test verification loop, and vault sync.
+version: 1.0.0
+author: Enki Core
+
+# Visual Builder Canvas Layout (React Flow canvas coordinates)
+canvas:
+  viewport:
+    x: 0.0
+    y: 0.0
+    zoom: 1.0
+  nodes:
+    context_extraction:
+      x: 100.0
+      y: 200.0
+    coding:
+      x: 380.0
+      y: 200.0
+    verification:
+      x: 660.0
+      y: 200.0
+    sync:
+      x: 940.0
+      y: 200.0
+
+parameters:
+  task_description:
+    type: string
+    description: Feature specification, user story, or bug fix description
+    required: true
+  project:
+    type: string
+    description: Target project name defined in enki.config.json
+    default: General
+  dry_run:
+    type: boolean
+    description: Enable simulation mode with $0.00 spend and mock agent execution
+    default: false
+  model_override:
+    type: string
+    description: Optional model override applied to all LLM-powered steps
+
+steps:
+  # Step 1: Hermes Context Extraction from Obsidian Vault
+  - id: context_extraction
+    name: Hermes Context Extraction
+    type: context_extraction
+    agent: hermes
+    dependencies: []
+    model: auto
+    config:
+      vault_search_limit: 10
+      include_knowledge_notes: true
+    gate:
+      enabled: true
+      gate_type: post_execution
+      prompt: Review generated context_payload.json before proceeding to code implementation handshake
+      allowed_actions:
+        - approve
+        - edit_and_approve
+        - reject
+        - abort
+      default_action: approve
+
+  # Step 2: OMP Implementation Handshake in Git Worktree
+  - id: coding
+    name: OMP Coding Handshake
+    type: coding
+    agent: omp
+    dependencies:
+      - context_extraction
+    model: auto
+    config:
+      lsp_enabled: true
+      timeout_seconds: 300
+    gate:
+      enabled: true
+      gate_type: pre_execution
+      prompt: Review and approve OMP implementation plan before modifying repository files
+      allowed_actions:
+        - approve
+        - edit_and_approve
+        - reject
+        - abort
+      default_action: approve
+    retry:
+      max_retries: 2
+      backoff_seconds: 1.0
+      escalate_to: anthropic/claude-opus-5.5
+      escalate_after_attempts: 2
+    on_failure: abort
+
+  # Step 3: OMP Local Test Suite Verification Loop
+  - id: verification
+    name: OMP Test Verification Loop
+    type: verification
+    agent: omp
+    dependencies:
+      - coding
+    config:
+      max_retries: 3
+      auto_fix: true
+      run_all_project_tests: false
+    on_failure: abort
+
+  # Step 4: Hermes Vault Activity Log & Documentation Sync
+  - id: sync
+    name: Hermes Vault Sync
+    type: sync
+    agent: hermes
+    dependencies:
+      - verification
+    config:
+      update_task_checklist: true
+      log_activity_summary: true
+    on_failure: abort

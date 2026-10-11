@@ -105,25 +105,29 @@ def get_summary(days: int = 30) -> Dict[str, Any]:
         """, (cutoff,))
         by_agent = [dict(r) for r in cursor.fetchall()]
 
-        # By Model
+        # By Model (including prompt, completion, total tokens, avg tokens, cost)
         cursor.execute("""
             SELECT 
                 model,
                 COUNT(*) as calls,
-                SUM(total_tokens) as tokens,
-                SUM(cost_usd) as cost
+                COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as tokens,
+                COALESCE(SUM(cost_usd), 0.0) as cost,
+                ROUND(AVG(total_tokens), 1) as avg_tokens_per_call
             FROM telemetry_records
             WHERE timestamp >= ?
             GROUP BY model
+            ORDER BY cost DESC, tokens DESC
         """, (cutoff,))
         by_model = [dict(r) for r in cursor.fetchall()]
 
-        # Recent 5 entries
+        # Recent 50 entries
         cursor.execute("""
-            SELECT id, timestamp, agent_role, model, total_tokens, cost_usd, task_id
+            SELECT id, timestamp, agent_role, model, prompt_tokens, completion_tokens, total_tokens, cost_usd, task_id, notes
             FROM telemetry_records
             ORDER BY id DESC
-            LIMIT 5
+            LIMIT 50
         """)
         recent = [dict(r) for r in cursor.fetchall()]
 
@@ -137,6 +141,154 @@ def get_summary(days: int = 30) -> Dict[str, Any]:
         "by_agent": by_agent,
         "by_model": by_model,
         "recent_records": recent
+    }
+
+def get_all_models_usage(days: int = 90) -> List[Dict[str, Any]]:
+    """
+    Returns comprehensive lifetime/period usage aggregated for each model individually.
+    Includes model name, total calls, prompt tokens, completion tokens, total tokens,
+    total cost, and the tasks/runs that called this model.
+    """
+    init_db()
+    db_path = get_db_path()
+    cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)).isoformat()
+
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT 
+                model,
+                COUNT(*) as total_calls,
+                COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                COALESCE(SUM(cost_usd), 0.0) as total_cost_usd,
+                COUNT(DISTINCT task_id) as distinct_tasks_count,
+                MIN(timestamp) as first_used,
+                MAX(timestamp) as last_used
+            FROM telemetry_records
+            WHERE timestamp >= ?
+            GROUP BY model
+            ORDER BY total_cost_usd DESC, total_tokens DESC
+        """, (cutoff,))
+        models = [dict(r) for r in cursor.fetchall()]
+
+    return models
+
+def get_task_usage_summary(limit: int = 50) -> List[Dict[str, Any]]:
+    """
+    Returns usage aggregated per task_id / run_id.
+    Includes task_id, total calls, models used, prompt tokens, completion tokens,
+    total tokens, and total cost incurred.
+    """
+    init_db()
+    db_path = get_db_path()
+
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT 
+                COALESCE(NULLIF(task_id, ''), 'standalone') as task_id,
+                COUNT(*) as total_calls,
+                GROUP_CONCAT(DISTINCT model) as models_used,
+                COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                COALESCE(SUM(cost_usd), 0.0) as total_cost_usd,
+                MIN(timestamp) as started_at,
+                MAX(timestamp) as last_activity
+            FROM telemetry_records
+            GROUP BY COALESCE(NULLIF(task_id, ''), 'standalone')
+            ORDER BY last_activity DESC
+            LIMIT ?
+        """, (limit,))
+        tasks = [dict(r) for r in cursor.fetchall()]
+
+    return tasks
+
+def get_run_telemetry(run_id: str) -> Dict[str, Any]:
+    """
+    Derives exact token usage, cost, and call records strictly scoped to a specific run_id.
+    Fixes the 30-day sum bug where get_summary() was used across all historical records.
+    """
+    init_db()
+    db_path = get_db_path()
+
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Exact Totals for this run_id
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as calls_count,
+                COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as total_tokens,
+                COALESCE(SUM(cost_usd), 0.0) as total_cost_usd
+            FROM telemetry_records
+            WHERE task_id = ?
+        """, (run_id,))
+        row = cursor.fetchone()
+
+        calls_count = row["calls_count"] if row else 0
+        prompt_tokens = row["prompt_tokens"] if row else 0
+        comp_tokens = row["completion_tokens"] if row else 0
+        total_tokens = row["total_tokens"] if row else 0
+        total_cost = row["total_cost_usd"] if row else 0.0
+
+        # Breakdown by Agent Role for this run_id
+        cursor.execute("""
+            SELECT 
+                agent_role,
+                COUNT(*) as calls,
+                COALESCE(SUM(total_tokens), 0) as tokens,
+                COALESCE(SUM(cost_usd), 0.0) as cost
+            FROM telemetry_records
+            WHERE task_id = ?
+            GROUP BY agent_role
+        """, (run_id,))
+        by_agent = [dict(r) for r in cursor.fetchall()]
+
+        # Breakdown by Model for this run_id
+        cursor.execute("""
+            SELECT 
+                model,
+                COUNT(*) as calls,
+                COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+                COALESCE(SUM(total_tokens), 0) as tokens,
+                COALESCE(SUM(cost_usd), 0.0) as cost
+            FROM telemetry_records
+            WHERE task_id = ?
+            GROUP BY model
+            ORDER BY cost DESC
+        """, (run_id,))
+        by_model = [dict(r) for r in cursor.fetchall()]
+
+        # Individual call records for this run_id
+        cursor.execute("""
+            SELECT id, timestamp, agent_role, model, prompt_tokens, completion_tokens, total_tokens, cost_usd, notes
+            FROM telemetry_records
+            WHERE task_id = ?
+            ORDER BY id ASC
+        """, (run_id,))
+        records = [dict(r) for r in cursor.fetchall()]
+
+    return {
+        "run_id": run_id,
+        "calls_count": calls_count,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": comp_tokens,
+        "total_tokens": total_tokens,
+        "total_cost_usd": round(total_cost, 6),
+        "by_agent": by_agent,
+        "by_model": by_model,
+        "records": records
     }
 
 def print_dashboard() -> None:

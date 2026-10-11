@@ -1,0 +1,220 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EnkiWorkflowDefinition",
+  "description": "Schema for Enki multi-model DAG workflow definitions",
+  "type": "object",
+  "required": ["id", "name", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Unique machine-readable identifier for the workflow"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable title of the workflow"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed summary of workflow purpose and behavior"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version of workflow definition (e.g. 1.0.0)"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author or maintainer of the workflow"
+    },
+    "canvas": {
+      "type": "object",
+      "description": "Visual builder viewport and node layout metadata for React Flow",
+      "additionalProperties": false,
+      "properties": {
+        "viewport": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "zoom": { "type": "number" }
+          }
+        },
+        "nodes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["x", "y"],
+            "additionalProperties": false,
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Input parameters accepted by the workflow",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "integer", "boolean", "array", "object"]
+          },
+          "description": { "type": "string" },
+          "default": {},
+          "required": { "type": "boolean" },
+          "enum": { "type": "array" }
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "description": "List of executable DAG step nodes",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "type"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "description": "Unique identifier for this step within the workflow"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable title of the step"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "context_extraction",
+              "context",
+              "planning",
+              "coding",
+              "code",
+              "verification",
+              "verify",
+              "review",
+              "compare",
+              "sync",
+              "gate",
+              "handshake",
+              "custom"
+            ],
+            "description": "Execution step type"
+          },
+          "agent": {
+            "type": "string",
+            "enum": ["hermes", "omp", "evaluator", "system"],
+            "description": "Target executing agent"
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "description": "Prerequisite step IDs that must complete before this step starts"
+          },
+          "model": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Explicit model identifier, preset reference, or 'auto'"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": { "type": "string", "enum": ["auto", "explicit", "preset"] },
+                  "category": { "type": "string", "enum": ["coding", "planning", "reasoning", "general"] },
+                  "tier": { "type": "string", "enum": ["frontier", "value_leader", "cost_optimal", "fast"] },
+                  "model_id": { "type": "string" },
+                  "preset": { "type": "string" },
+                  "fallback": { "type": "string" }
+                }
+              }
+            ]
+          },
+          "config": {
+            "type": "object",
+            "description": "Step-specific parameters and configuration options"
+          },
+          "params": {
+            "type": "object",
+            "description": "Alias for config"
+          },
+          "retry": {
+            "type": "object",
+            "description": "Retry and escalation policy on step failure",
+            "additionalProperties": false,
+            "properties": {
+              "max_retries": { "type": "integer", "minimum": 0 },
+              "backoff_seconds": { "type": "number", "minimum": 0 },
+              "escalate_to": { "type": "string" },
+              "escalate_after_attempts": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "escalate": {
+            "type": "object",
+            "description": "Direct escalate policy on failure threshold",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "model": { "type": "string" },
+              "after_attempts": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "on_failure": {
+            "type": "string",
+            "enum": ["abort", "continue", "retry", "escalate", "skip"],
+            "default": "abort"
+          },
+          "gate": {
+            "type": "object",
+            "description": "Interactive approval gate attached to this step",
+            "required": ["enabled"],
+            "additionalProperties": false,
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "gate_type": {
+                "type": "string",
+                "enum": ["pre_execution", "post_execution", "approval"],
+                "default": "post_execution"
+              },
+              "prompt": { "type": "string" },
+              "allowed_actions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["approve", "edit_and_approve", "edit", "reject", "abort", "regenerate"]
+                }
+              },
+              "default_action": {
+                "type": "string",
+                "enum": ["approve", "edit_and_approve", "edit", "reject", "abort", "regenerate"]
+              }
+            }
+          },
+          "canvas": {
+            "type": "object",
+            "required": ["x", "y"],
+            "additionalProperties": false,
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

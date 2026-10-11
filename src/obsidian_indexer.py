@@ -9,6 +9,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from src.config import load_config
+from src.engine.vault_guard import is_project_excluded, ObsidianVaultGuard
 
 def parse_frontmatter(content: str) -> Dict[str, Any]:
     """Simple parser for YAML frontmatter in Obsidian notes."""
@@ -35,8 +36,10 @@ def parse_frontmatter(content: str) -> Dict[str, Any]:
 class ObsidianIndexer:
     def __init__(self, vault_path: Optional[str] = None):
         cfg = load_config()
-        self.vault_path = Path(vault_path or cfg.get("obsidian", {}).get("vault_path", "C:/Users/Christian Picofazzi/Documents/pico-vault"))
+        v_env = os.environ.get("ENKI_OBSIDIAN_VAULT")
+        self.vault_path = Path(vault_path or v_env or cfg.get("obsidian", {}).get("vault_path", "C:/Users/Christian Picofazzi/Documents/pico-vault"))
         self.log_rel_path = cfg.get("obsidian", {}).get("log_file", "01_Dashboard/Enki_Activity_Log.md")
+        self.guard = ObsidianVaultGuard(self.vault_path)
 
     def is_vault_available(self) -> bool:
         return self.vault_path.is_dir()
@@ -56,6 +59,9 @@ class ObsidianIndexer:
         # Target search paths: 10_Projects, 40_Tasks, 50_Knowledge, 00_Inbox
         for root, _, files in os.walk(self.vault_path):
             if ".obsidian" in root or ".trash" in root:
+                continue
+            # F48: Strict exclusion of Body.me App folder
+            if "body.me" in root.lower() or "bodyme" in root.lower():
                 continue
             for file in files:
                 if not file.endswith(".md"):
@@ -143,23 +149,13 @@ class ObsidianIndexer:
             with open(best_file, "r", encoding="utf-8") as file_handle:
                 content = file_handle.read()
 
-            import datetime
-            today_str = datetime.date.today().isoformat()
+            fm = parse_frontmatter(content)
+            proj = fm.get("project", "")
+            if is_project_excluded(proj):
+                print(f"[Obsidian Sync Notice] Skipping excluded project: {proj}")
+                return None
 
-            # 1. Update frontmatter status and completed_date
-            new_content = re.sub(r'status:\s*todo', 'status: done', content)
-            new_content = re.sub(r'completed_date:\s*""?', f'completed_date: "{today_str}"', new_content)
-
-            # 2. Check off action checklist items: - [ ] -> - [x]
-            new_content = re.sub(r'-\s*\[\s*\]', '- [x]', new_content)
-
-            # 3. Append completion note if not already present
-            if "## Enki Completion Summary" not in new_content:
-                new_content += f"\n\n## Enki Completion Summary\n> [!success] Verified & Completed by Enki Hub on {today_str}\n{summary}\n"
-
-            with open(best_file, "w", encoding="utf-8") as file_handle:
-                file_handle.write(new_content)
-
+            self.guard.update_task_note(best_file, summary=summary, task_id=title)
             return best_file
         except Exception as e:
             print(f"[Obsidian Sync Warning] Could not update task note {best_file}: {e}")
@@ -180,29 +176,14 @@ class ObsidianIndexer:
         if synced_task:
             print(f"  -> Task Note Synchronized: {synced_task.name} (marked [x] done)")
 
-        # 2. Append to central activity log
-        log_file = self.vault_path / self.log_rel_path
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-
-        import datetime
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        log_entry = f"""
-### [{now_str}] Task Complete: {title}
-- **Task ID**: `{task_id}`
-- **Verification Status**: `{test_status}`
-- **Tokens Consumed**: `{tokens_used:,}`
-- **Estimated Cost**: `${cost_usd:.4f} USD`
-- **Summary**:
-  {summary}
----
-"""
-        # Create file if missing
-        if not log_file.is_file():
-            with open(log_file, "w", encoding="utf-8") as f:
-                f.write(f"# Enki Command Hub - Activity & Execution Log\n\nAutomated log entries recorded by Hermes & OMP.\n\n---\n")
-
-        with open(log_file, "a", encoding="utf-8") as f:
-            f.write(log_entry)
-
+        # 2. Append to central activity log using atomic vault guard
+        log_file = self.guard.log_activity(
+            task_id=task_id,
+            title=title,
+            summary=summary,
+            tokens_used=tokens_used,
+            cost_usd=cost_usd,
+            test_status=test_status,
+            rel_log_path=self.log_rel_path
+        )
         return log_file
