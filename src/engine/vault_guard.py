@@ -252,3 +252,76 @@ class ObsidianVaultGuard:
                 f.write(entry)
 
         return log_file
+
+    def create_research_note(
+        self,
+        title: str,
+        summary: str,
+        core_concepts: Optional[List[str]] = None,
+        architecture: str = "",
+        code_examples: str = "",
+        tags: Optional[List[str]] = None,
+        related_links: Optional[List[str]] = None,
+        subfolder: str = "50_Knowledge/Research Notes"
+    ) -> Path:
+        """
+        Creates a new evergreen technical research note adhering to Template - Research.md.
+        Atomically saves the note and maintains Obsidian vault wikilinks.
+        """
+        clean_title = re.sub(r'[<>:"/\\|?*]', '', title).strip()
+        target_dir = self.vault_path / subfolder
+        target_file = target_dir / f"{clean_title}.md"
+        today_str = datetime.date.today().isoformat()
+
+        tag_list = list(tags) if tags else ["research"]
+        if "research" not in tag_list:
+            tag_list.insert(0, "research")
+        tags_yaml = "\n".join(f"  - {t}" for t in tag_list)
+
+        concepts = core_concepts or ["Core specifications, operational parameters, and architectural thesis."]
+        concepts_md = "\n".join(f"- {c}" for c in concepts)
+        arch_md = architecture.strip() or "Standard modular system design conforming to decoupled architecture."
+        code_md = code_examples.strip() or "# Implementation prototype\npass"
+
+        links = list(related_links or [])
+        if "[[Knowledge Hub]]" not in links:
+            links.insert(0, "[[Knowledge Hub]]")
+        links_md = "\n".join(f"- {l if l.startswith('[[') else f'[[{l}]]'}" for l in links)
+
+        note_content = f"""---
+title: "{clean_title}"
+type: research
+tags:
+{tags_yaml}
+status: evergreen
+created: "{today_str}"
+updated: "{today_str}"
+aliases: []
+---
+
+# {clean_title}
+
+> [!abstract] Executive Summary
+> {summary}
+
+## Core Concepts & Theoretical Background
+{concepts_md}
+
+## Architecture / Mathematical Formulation
+{arch_md}
+
+## Practical Implementation & Code Examples
+```python
+{code_md}
+```
+
+## Open Questions & Future Explorations
+- Distributed scalability and state synchronization benchmarks.
+- Edge compiler and execution verification.
+
+## References & Papers
+- Hub: [[Knowledge Hub]]
+{links_md}
+"""
+        self.write_atomic(target_file, note_content)
+        return target_file

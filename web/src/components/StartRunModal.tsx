@@ -19,6 +19,8 @@ export const StartRunModal: React.FC<StartRunModalProps> = ({ onClose, onRunCrea
   const [dryRun, setDryRun] = useState(true);
   const [gateway, setGateway] = useState('openrouter');
   const [modelOverride, setModelOverride] = useState('');
+  const [localResearch, setLocalResearch] = useState(true);
+  const [findResearch, setFindResearch] = useState(false);
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [models, setModels] = useState<any[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -53,6 +55,8 @@ export const StartRunModal: React.FC<StartRunModalProps> = ({ onClose, onRunCrea
           dry_run: dryRun,
           gateway: gateway,
           model_override: modelOverride || undefined,
+          local_research: localResearch,
+          find_research: findResearch,
           start_immediately: true
         })
       });
@@ -134,6 +138,40 @@ export const StartRunModal: React.FC<StartRunModalProps> = ({ onClose, onRunCrea
                   <option key={m.id} value={m.id}>{m.name || m.id}</option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* Research Strategy Toggles */}
+          <div>
+            <label style={{ display: 'block', fontSize: 13, color: '#94a3b8', marginBottom: 8, fontWeight: 600 }}>Research Strategy & Context Sourcing</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <input 
+                  type="checkbox" 
+                  id="localResearchToggle"
+                  checked={localResearch}
+                  onChange={(e) => setLocalResearch(e.target.checked)}
+                  style={{ width: 16, height: 16, marginTop: 2, accentColor: '#0284c7' }}
+                />
+                <label htmlFor="localResearchToggle" style={{ fontSize: 13, color: '#f8fafc', cursor: 'pointer' }}>
+                  <strong>Local Vault Research</strong>
+                  <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>Search Obsidian vault to find existing context & constraints.</div>
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <input 
+                  type="checkbox" 
+                  id="findResearchToggle"
+                  checked={findResearch}
+                  onChange={(e) => setFindResearch(e.target.checked)}
+                  style={{ width: 16, height: 16, marginTop: 2, accentColor: '#0284c7' }}
+                />
+                <label htmlFor="findResearchToggle" style={{ fontSize: 13, color: '#f8fafc', cursor: 'pointer' }}>
+                  <strong>Find Web Research</strong>
+                  <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>Search internet, synthesize topic, and create new vault research note.</div>
+                </label>
+              </div>
             </div>
           </div>
 

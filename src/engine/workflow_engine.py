@@ -114,8 +114,10 @@ class WorkflowEngine:
         # Milestone 5: Budget Guard & Vault Guard safety
         from src.engine.budget_guard import BudgetGuard
         from src.engine.vault_guard import ObsidianVaultGuard, enforce_agent_boundary, enforce_project_inclusion
+        from src.obsidian_indexer import ObsidianIndexer
         self.budget_guard = BudgetGuard(config_path=self.config_path, event_bus=self.event_bus)
         self.vault_guard = ObsidianVaultGuard()
+        self.indexer = ObsidianIndexer(self.vault_guard.vault_path)
 
         # Custom hook for reviewer decisions in test fixtures
         self.reviewer_evaluator_fn: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None
@@ -463,6 +465,44 @@ class WorkflowEngine:
     def _execute_context_extraction(
         self, run: Run, step_def: Dict[str, Any], context: StepExecutionContext
     ) -> Dict[str, Any]:
+        local_hits = []
+        if getattr(run, "local_research", True):
+            try:
+                ctx_data = self.indexer.extract_context(run.task)
+                local_hits = ctx_data.get("hits", [])
+            except Exception as e:
+                logger.debug(f"Local vault extraction warning: {e}")
+
+        web_research_sources = []
+        web_research_concepts = []
+        web_note_name = None
+        if getattr(run, "find_research", False):
+            try:
+                from src.engine.researcher import execute_find_research_and_create_note
+                res_info = execute_find_research_and_create_note(
+                    topic=run.task,
+                    vault_path=self.vault_guard.vault_path,
+                    gateway_client=self.gateway_client,
+                    dry_run=run.dry_run,
+                    task_id=run.run_id
+                )
+                web_note_name = res_info.get("note_name")
+                web_research_sources.append({
+                    "path": res_info.get("vault_relative_path", ""),
+                    "title": res_info.get("research_data", {}).get("title", run.task),
+                    "excerpt": res_info.get("research_data", {}).get("summary", ""),
+                    "source": "Find Web Research (Synthesized & Created in Vault)"
+                })
+                web_research_concepts = res_info.get("research_data", {}).get("core_concepts", [])
+            except Exception as e:
+                logger.warning(f"Find research error: {e}")
+
+        all_sources = [
+            {"path": h["path"], "excerpt": h["excerpt"], "title": h.get("title", ""), "source": "Obsidian Vault"} for h in local_hits
+        ] + [
+            {"path": s["path"], "excerpt": s["excerpt"], "title": s.get("title", ""), "source": s.get("source", "Find Web Research")} for s in web_research_sources
+        ]
+
         if run.dry_run:
             payload = {
                 "task_id": f"task_{run.run_id}",
@@ -474,7 +514,7 @@ class WorkflowEngine:
                     f"Implement feature requested in task: {run.task}",
                     "Ensure all unit tests pass with exit code 0",
                     "Maintain strict backward compatibility"
-                ],
+                ] + web_research_concepts,
                 "engineering_constraints": {
                     "language": "python",
                     "target_framework": run.project,
@@ -486,27 +526,34 @@ class WorkflowEngine:
                 "acceptance_criteria": {
                     "test_commands": ["py -m pytest -q"],
                     "success_conditions": ["All unit tests pass with exit code 0"]
-                }
+                },
+                "context_sources": all_sources,
+                "web_research_note": web_note_name
             }
             run.payload = payload
             payload_file = self.run_manager.get_context_payload_file(run.run_id)
             payload_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-            return {"payload": payload, "requirements_count": len(payload["requirements"])}
+            return {"payload": payload, "requirements_count": len(payload["requirements"]), "web_research_note": web_note_name}
 
         # Non-dry run: invoke gateway / Hermes context extraction
+        sources_summary = "\n".join([f"- Note: {s['path']}: {s.get('excerpt', '')[:100]}" for s in all_sources])
+        user_prompt = f"Extract technical requirements for: {run.task}\n\nContext Sources:\n{sources_summary}"
         spec_resp = self.gateway_client.complete(
-            messages=[{"role": "user", "content": f"Extract technical requirements for: {run.task}"}],
+            messages=[{"role": "user", "content": user_prompt}],
             agent_role="hermes",
             task_id=run.run_id
         )
         try:
             payload = json.loads(spec_resp["content"])
         except Exception:
-            payload = {"task_id": run.run_id, "title": run.task, "requirements": [run.task]}
+            payload = {"task_id": run.run_id, "title": run.task, "requirements": [run.task] + web_research_concepts}
+        payload["context_sources"] = all_sources
+        if web_note_name:
+            payload["web_research_note"] = web_note_name
         run.payload = payload
         payload_file = self.run_manager.get_context_payload_file(run.run_id)
         payload_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        return {"payload": payload}
+        return {"payload": payload, "web_research_note": web_note_name}
 
     def _execute_planning(
         self, run: Run, step_def: Dict[str, Any], context: StepExecutionContext

@@ -25,6 +25,8 @@ class CreateRunRequest(BaseModel):
     gateway: str = "openrouter"
     model_override: Optional[str] = None
     preset: Optional[str] = None
+    local_research: bool = True
+    find_research: bool = False
     start_immediately: bool = True
 
 
@@ -67,7 +69,9 @@ def create_run(req: CreateRunRequest, background_tasks: BackgroundTasks):
         dry_run=req.dry_run,
         gateway=req.gateway,
         model_override=req.model_override,
-        preset=req.preset
+        preset=req.preset,
+        local_research=req.local_research,
+        find_research=req.find_research
     )
 
     if req.start_immediately:

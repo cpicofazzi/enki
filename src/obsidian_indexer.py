@@ -44,25 +44,39 @@ class ObsidianIndexer:
     def is_vault_available(self) -> bool:
         return self.vault_path.is_dir()
 
-    def search_vault(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
-        """Searches markdown notes in the vault matching keywords in query."""
+    def search_vault(self, query: str, max_results: int = 5, min_score: int = 15) -> List[Dict[str, Any]]:
+        """Searches markdown notes in the vault matching keywords in query with relevance thresholding."""
         if not self.is_vault_available():
             return []
 
-        stopwords = {"for", "and", "the", "with", "from", "that", "this", "have", "are", "were", "will", "your", "can", "build", "all", "out", "how", "what", "when", "where", "which"}
+        stopwords = {
+            "for", "and", "the", "with", "from", "that", "this", "have", "are", "were", "will", "your",
+            "can", "build", "all", "out", "how", "what", "when", "where", "which",
+            # Action verbs & pipeline commands to prevent false-positive matching
+            "run", "running", "make", "making", "test", "testing", "smoke", "create", "creating",
+            "implement", "implementing", "setup", "start", "starting", "add", "adding", "use", "using",
+            "into", "some", "new", "get", "got", "done"
+        }
         query_terms = [t.lower() for t in re.findall(r"\w+", query) if len(t) > 2 and t.lower() not in stopwords]
         if not query_terms:
+            # Fallback to general terms if query consisted entirely of stopwords
             query_terms = [t.lower() for t in re.findall(r"\w+", query) if len(t) > 2]
-            
-        matches = []
 
-        # Target search paths: 10_Projects, 40_Tasks, 50_Knowledge, 00_Inbox
+        matches = []
+        is_athletic_query = any(t in ["workout", "fitness", "running", "athletics", "soccer", "exercise", "hyrox", "training"] for t in query_terms)
+
         for root, _, files in os.walk(self.vault_path):
+            root_lower = root.lower()
             if ".obsidian" in root or ".trash" in root:
                 continue
             # F48: Strict exclusion of Body.me App folder
-            if "body.me" in root.lower() or "bodyme" in root.lower():
+            if "body.me" in root_lower or "bodyme" in root_lower:
                 continue
+            # Exclude personal lifestyle notes for technical queries unless specifically searched
+            if not is_athletic_query:
+                if "health & fitness" in root_lower or "athletics & training" in root_lower:
+                    continue
+
             for file in files:
                 if not file.endswith(".md"):
                     continue
@@ -71,15 +85,22 @@ class ObsidianIndexer:
                 try:
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                         text = f.read()
-                    
+
                     lower_text = text.lower()
                     lower_file = file.lower()
-                    
+
                     # Heavy weight for title / filename match
                     title_score = sum(lower_file.count(term) * 25 for term in query_terms)
                     body_score = sum(min(lower_text.count(term), 10) for term in query_terms)
-                    score = title_score + body_score
-                    if score > 0:
+
+                    # Distinct term coverage bonus: matching multiple domain keywords indicates true topic relevance
+                    terms_matched = sum(1 for term in query_terms if (term in lower_file or term in lower_text))
+                    term_coverage_score = terms_matched * 5
+
+                    score = title_score + body_score + term_coverage_score
+
+                    # Relevance validation: must meet threshold and have multi-term coverage or title match
+                    if score >= min_score and (terms_matched >= 2 or title_score > 0 or len(query_terms) == 1):
                         fm = parse_frontmatter(text)
                         # Extract first 500 characters of meaningful body
                         body = text.split("---", 2)[-1] if text.startswith("---") else text
@@ -101,7 +122,7 @@ class ObsidianIndexer:
     def extract_context(self, task_description: str) -> Dict[str, Any]:
         """Hermes Context Extractor: compiles relevant notes & inferred constraints."""
         search_hits = self.search_vault(task_description, max_results=4)
-        
+
         # Check if query matches a known project
         inferred_language = "python"  # default
         detected_project = None
@@ -110,7 +131,7 @@ class ObsidianIndexer:
             if p_name:
                 detected_project = p_name.strip("[]")
                 break
-        
+
         # Heuristics for language based on project notes or task text
         combined_text = (task_description + " " + " ".join(h["excerpt"] for h in search_hits)).lower()
         if "rust" in combined_text or "cargo" in combined_text:
@@ -124,8 +145,32 @@ class ObsidianIndexer:
             "query": task_description,
             "detected_project": detected_project,
             "inferred_language": inferred_language,
-            "hits": search_hits
+            "hits": search_hits,
+            "requires_research_note": len(search_hits) == 0
         }
+
+    def create_research_note(
+        self,
+        title: str,
+        summary: str,
+        core_concepts: Optional[List[str]] = None,
+        architecture: str = "",
+        code_examples: str = "",
+        tags: Optional[List[str]] = None,
+        related_links: Optional[List[str]] = None,
+        subfolder: str = "50_Knowledge/Research Notes"
+    ) -> Path:
+        """Hermes creates a new technical research note adhering to Template - Research.md."""
+        return self.guard.create_research_note(
+            title=title,
+            summary=summary,
+            core_concepts=core_concepts,
+            architecture=architecture,
+            code_examples=code_examples,
+            tags=tags,
+            related_links=related_links,
+            subfolder=subfolder
+        )
 
     def sync_task_note(self, task_title: str, summary: str) -> Optional[Path]:
         """Finds matching task note in 40_Tasks/ and marks it completed with checklist checked."""

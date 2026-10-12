@@ -91,7 +91,23 @@ def test_list_and_create_run(client, tmp_path, monkeypatch):
     run_data = res_get.json()
     assert run_data["task"] == "Test Web API creation"
     assert run_data["status"] == "pending"
+    assert run_data.get("local_research") is True
+    assert run_data.get("find_research") is False
     assert "subagents_flow_data" in run_data
+
+    # 3. Create run with research flags toggled
+    req_research = {
+        "task": "Test Research Flags",
+        "local_research": False,
+        "find_research": True,
+        "dry_run": True,
+        "start_immediately": False
+    }
+    res_r = client.post("/api/runs", json=req_research)
+    assert res_r.status_code == 200
+    r_data = res_r.json()["run"]
+    assert r_data["local_research"] is False
+    assert r_data["find_research"] is True
 
     # 2b. Get dedicated subagents flow endpoint
     res_flow = client.get(f"/api/runs/{run_id}/subagents-flow")

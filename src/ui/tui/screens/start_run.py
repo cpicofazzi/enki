@@ -47,12 +47,20 @@ class StartRunScreen(Screen):
 
             with Horizontal(classes="card"):
                 with Vertical(classes="pane-50"):
+                    yield Label("Research Strategy & Knowledge Sources", classes="section-title")
+                    yield Checkbox("Local Vault Research (Search pico-vault)", value=True, id="chk_local_research")
+                    yield Checkbox("Find Web Research (Internet Synthesis & Note)", value=False, id="chk_find_research")
+                with Vertical(classes="pane-50"):
                     yield Label("Interactive Approval Gates", classes="section-title")
                     yield Checkbox("Post-Context Approval Gate", value=True, id="chk_gate_post_context")
                     yield Checkbox("Pre-Code Approval Gate", value=True, id="chk_gate_pre_code")
+
+            with Horizontal(classes="card"):
                 with Vertical(classes="pane-50"):
                     yield Label("Model Overrides & Presets", classes="section-title")
                     yield Select([], id="sel_preset", prompt="Curated Preset (Optional)...")
+                with Vertical(classes="pane-50"):
+                    yield Label("Custom Model Override", classes="section-title")
                     yield Input(placeholder="Custom Model (e.g. anthropic/claude-3.7-sonnet)", id="inp_model_override")
 
             with Horizontal(classes="card"):
@@ -180,6 +188,9 @@ class StartRunScreen(Screen):
         sel_preset = self.query_one("#sel_preset", Select).value
         preset_val = sel_preset if (isinstance(sel_preset, str) and sel_preset.strip()) else None
 
+        local_research = self.query_one("#chk_local_research", Checkbox).value
+        find_research = self.query_one("#chk_find_research", Checkbox).value
+
         rm = getattr(self.app, "run_manager", None)
         if rm:
             new_run = rm.create_run(
@@ -188,7 +199,9 @@ class StartRunScreen(Screen):
                 workflow_id=str(wf_val),
                 dry_run=dry_run,
                 model_override=override_model,
-                preset=preset_val
+                preset=preset_val,
+                local_research=local_research,
+                find_research=find_research
             )
             rm.start_run(new_run.run_id)
             self.app.active_run_id = new_run.run_id
@@ -203,6 +216,8 @@ class StartRunScreen(Screen):
         self.query_one("#txt_task_prompt", TextArea).text = ""
         self.query_one("#inp_model_override", Input).value = ""
         self.query_one("#sw_dry_run", Switch).value = True
+        self.query_one("#chk_local_research", Checkbox).value = True
+        self.query_one("#chk_find_research", Checkbox).value = False
 
     def action_cancel(self) -> None:
         self.app.switch_screen("dashboard")

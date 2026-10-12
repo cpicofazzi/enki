@@ -63,23 +63,65 @@ class EnkiOrchestrator:
         self,
         task_description: str,
         model_override: Optional[str] = None,
-        output_path: Optional[Path] = None
+        output_path: Optional[Path] = None,
+        local_research: bool = True,
+        find_research: bool = False
     ) -> Dict[str, Any]:
         """
-        Step 1: Hermes crawls Obsidian vault and outputs context_payload.json.
-        Rule: Hermes NEVER writes production code.
+        Step 1: Hermes crawls Obsidian vault (if local_research) and synthesizes web research (if find_research).
+        Outputs context_payload.json. Rule: Hermes NEVER writes production code.
         """
-        print(f"\n[Step 1: Context Extraction] Hermes indexing Obsidian vault for: '{task_description}'...")
-        context_data = self.indexer.extract_context(task_description)
-        hits = context_data.get("hits", [])
-        print(f"  -> Found {len(hits)} relevant notes in pico-vault")
-        for h in hits:
-            print(f"     * {h['path']} (score: {h['score']})")
+        hits = []
+        context_data = {"inferred_language": "python", "detected_project": "General", "hits": []}
+        if local_research:
+            print(f"\n[Step 1: Context Extraction] Hermes indexing Obsidian vault for: '{task_description}'...")
+            context_data = self.indexer.extract_context(task_description)
+            hits = context_data.get("hits", [])
+            if hits:
+                print(f"  -> Found {len(hits)} relevant notes in pico-vault")
+                for h in hits:
+                    print(f"     * {h['path']} (score: {h['score']})")
+            else:
+                print("  ! No matching notes found in pico-vault above relevance threshold.")
+        else:
+            print(f"\n[Step 1: Context Extraction] Skipping local vault research (--no-local-research).")
+
+        web_sources = []
+        web_concepts = []
+        web_note_name = None
+        if find_research:
+            try:
+                print(f"  [Find Research] Searching internet & synthesizing technical note for: '{task_description}'...")
+                from src.engine.researcher import execute_find_research_and_create_note
+                res_info = execute_find_research_and_create_note(
+                    topic=task_description,
+                    vault_path=self.indexer.vault_path,
+                    gateway_client=self.openrouter,
+                    dry_run=self.dry_run,
+                    task_id=self.run_id
+                )
+                web_note_name = res_info.get("note_name")
+                web_sources.append({
+                    "path": res_info.get("vault_relative_path", ""),
+                    "title": res_info.get("research_data", {}).get("title", task_description),
+                    "excerpt": res_info.get("research_data", {}).get("summary", ""),
+                    "source": "Find Web Research"
+                })
+                web_concepts = res_info.get("research_data", {}).get("core_concepts", [])
+                print(f"  -> Research Note Created & Linked in Vault: {res_info.get('vault_relative_path')}")
+            except Exception as e:
+                print(f"  ! Warning: Web research synthesis failed: {e}")
+
+        all_sources = [
+            {"path": h["path"], "excerpt": h["excerpt"]} for h in hits
+        ] + [
+            {"path": s["path"], "excerpt": s["excerpt"]} for s in web_sources
+        ]
 
         notes_summary = "\n".join([
-            f"Note: {h['path']}\nTitle: {h['title']}\nExcerpt: {h['excerpt']}\n"
-            for h in hits
-        ])
+            f"Note: {s['path']}\nTitle: {s.get('title', s['path'])}\nExcerpt: {s.get('excerpt', '')}\n"
+            for s in all_sources
+        ]) if all_sources else "(No pre-existing vault notes found matching this domain. Conducting fresh research.)"
 
         system_prompt = (
             "You are Hermes, the Personal Assistant & Knowledge Coordinator in the Enki Hub.\n"
@@ -183,12 +225,12 @@ class EnkiOrchestrator:
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "source": f"Obsidian: {context_data.get('detected_project', 'pico-vault')}",
             "status": "pending",
-            "requirements": parsed_spec.get("requirements", []),
+            "requirements": parsed_spec.get("requirements", []) + web_concepts,
             "engineering_constraints": parsed_spec.get("engineering_constraints", {}),
             "acceptance_criteria": parsed_spec.get("acceptance_criteria", {}),
-            "context_sources": [
-                {"path": h["path"], "excerpt": h["excerpt"]} for h in hits
-            ]
+            "context_sources": all_sources,
+            "web_research_note": web_note_name,
+            "create_research_note": (len(hits) == 0 and not find_research) or context_data.get("requires_research_note", False)
         }
 
         # Save to target output and legacy PAYLOAD_FILE
@@ -351,6 +393,27 @@ class EnkiOrchestrator:
             test_status=v_status
         )
 
+        # Create new technical research note in 50_Knowledge/ if unrepresented or flagged
+        if payload.get("create_research_note") and not self.dry_run:
+            try:
+                constraints = payload.get("engineering_constraints", {})
+                arch_text = (
+                    f"- Language: {constraints.get('language', 'Python')}\n"
+                    f"- Target Framework: {constraints.get('target_framework', 'General')}\n"
+                    f"- Architecture Patterns: {', '.join(constraints.get('design_patterns', ['Modular']))}"
+                )
+                r_note = self.indexer.create_research_note(
+                    title=title,
+                    summary=f"Automated technical research & specification for: {title}",
+                    core_concepts=payload.get("requirements", []),
+                    architecture=arch_text,
+                    tags=["research", constraints.get("language", "python").lower()],
+                    related_links=["[[Knowledge Hub]]", "[[Tasks Hub]]"]
+                )
+                print(f"  -> New Research Note Solidified & Linked: {r_note.name}")
+            except Exception as e:
+                print(f"  ! Warning: Could not create research note: {e}")
+
         payload["status"] = "completed"
         with open(p_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
@@ -368,14 +431,21 @@ class EnkiOrchestrator:
     def run_pipeline(
         self,
         task_description: str,
-        model_override: Optional[str] = None
+        model_override: Optional[str] = None,
+        local_research: bool = True,
+        find_research: bool = False
     ) -> Dict[str, Any]:
-        """Executes the full 4-step pipeline end-to-end."""
+        """Executes the full 4-step pipeline end-to-end with optional research toggles."""
         print("=" * 64)
         print(" ENKI COMMAND HUB: EXECUTING 4-STEP PIPELINE")
         print("=" * 64)
 
-        payload = self.step_1_context_extraction(task_description, model_override=model_override)
+        payload = self.step_1_context_extraction(
+            task_description,
+            model_override=model_override,
+            local_research=local_research,
+            find_research=find_research
+        )
         handshake_res = self.step_2_execution_handshake(PAYLOAD_FILE)
         verification_res = self.step_3_verification(PAYLOAD_FILE)
         sync_res = self.step_4_sync(PAYLOAD_FILE, verification_res)

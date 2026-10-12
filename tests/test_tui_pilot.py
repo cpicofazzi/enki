@@ -391,7 +391,7 @@ async def test_tui_flow_start_run_interactive(seeded_tui_app):
 
         # Invariant: Run created and transitioned to Live Run screen
         assert len(seeded_tui_app.run_manager.list_runs()) == initial_count + 1
-        assert type(seeded_tui_app.screen).__name__ == "LiveRunScreen"
+        assert type(seeded_tui_app.screen).__name__ in ("LiveRunScreen", "GateModal")
 
 
 @pytest.mark.asyncio

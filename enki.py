@@ -34,13 +34,23 @@ def cmd_run(args):
     cfg = load_config()
     gw, md = resolve_preset(args, cfg)
     orchestrator = EnkiOrchestrator(gateway=gw, dry_run=getattr(args, "dry_run", False))
-    orchestrator.run_pipeline(args.task, model_override=md)
+    orchestrator.run_pipeline(
+        args.task,
+        model_override=md,
+        local_research=getattr(args, "local_research", True),
+        find_research=getattr(args, "find_research", False)
+    )
 
 def cmd_context(args):
     cfg = load_config()
     gw, md = resolve_preset(args, cfg)
     orchestrator = EnkiOrchestrator(gateway=gw, dry_run=getattr(args, "dry_run", False))
-    orchestrator.step_1_context_extraction(args.task, model_override=md)
+    orchestrator.step_1_context_extraction(
+        args.task,
+        model_override=md,
+        local_research=getattr(args, "local_research", True),
+        find_research=getattr(args, "find_research", False)
+    )
 
 def cmd_handshake(args):
     orchestrator = EnkiOrchestrator(dry_run=getattr(args, "dry_run", False))
@@ -74,8 +84,7 @@ def cmd_gateway(args):
     cfg_file = ROOT_DIR / "config" / "enki.config.json"
     gateways = cfg.get("gateways", {})
     active = cfg.get("active_gateway", "openrouter")
-
-    if args.set:
+    if getattr(args, "set", None):
         target = args.set.lower().strip()
         if target not in gateways:
             print(f"Error: Unknown gateway '{target}'. Available: {', '.join(gateways.keys())}")
@@ -89,6 +98,71 @@ def cmd_gateway(args):
             print(f"\n[+] Active gateway switched to: {gateways[target].get('name', target)} (`{target}`)\n")
         except Exception as e:
             print(f"Failed to update config: {e}")
+        return
+
+    if getattr(args, "test", False):
+        print("=" * 64)
+        print(" ENKI MODEL ROUTER CONNECTIVITY TEST")
+        print("=" * 64)
+        active_name = gateways.get(active, {}).get("name", active)
+        base_url = gateways.get(active, {}).get("base_url", "https://openrouter.ai/api/v1")
+        print(f" Active Gateway : {active_name} (`{active}`)")
+        print(f" Router Base URL: {base_url}")
+
+        # 1. Test Network & Public API Endpoint
+        print("\n[1/3] Testing Router Reachability & Model Catalog...")
+        from src.openrouter_catalog import OpenRouterCatalog
+        import time
+        try:
+            t0 = time.time()
+            cat = OpenRouterCatalog()
+            live_models = cat.fetch_live_catalog()
+            latency = round((time.time() - t0) * 1000, 1)
+            if live_models:
+                print(f"  [+] Connected! Reachable in {latency}ms ({len(live_models)} models cataloged).")
+            else:
+                print(f"  [!] Router reached, but catalog returned fallback list ({len(cat.get_catalog())} models).")
+        except Exception as e:
+            print(f"  [-] Connection failed: {e}")
+
+        # 2. Test API Key Configuration
+        print("\n[2/3] Checking Authentication & Credentials...")
+        from src.openrouter import GatewayClient
+        client = GatewayClient(gateway_name=active)
+        has_key = bool(client.api_key)
+        key_env = gateways.get(active, {}).get("api_key_env", "OPENROUTER_API_KEY")
+        if has_key:
+            masked = f"{client.api_key[:6]}...{client.api_key[-4:]}" if len(client.api_key) > 10 else "***"
+            print(f"  [+] API key detected in environment ({key_env}: {masked}) - LIVE MODE READY")
+        else:
+            print(f"  [!] No active API key found for {key_env}.")
+            print(f"      (Set {key_env} in .env to activate live API calls; currently operating in Simulation Mode)")
+
+        # 3. Test Inference Probe
+        print("\n[3/3] Sending Model Inference Probe...")
+        probe_model = getattr(args, "model", None) or (
+            client.default_hermes_model if has_key else "google/gemini-2.0-flash-001"
+        )
+        print(f"  * Probe Model: {probe_model}")
+        try:
+            t0 = time.time()
+            res = client.complete(
+                messages=[{"role": "user", "content": "Respond strictly with the single word: PONG"}],
+                model=probe_model,
+                agent_role="hermes",
+                task_id="probe_connectivity"
+            )
+            dur = round((time.time() - t0) * 1000, 1)
+            is_sim = res.get("usage", {}).get("simulated", False)
+            mode_str = "[Simulation Mode]" if is_sim else "[Live Inference]"
+            print(f"  [+] Response received in {dur}ms {mode_str}:")
+            print(f"    Content : {res.get('content', '').strip()[:80]}")
+            print(f"    Tokens  : {res.get('usage', {}).get('total_tokens', 0)} (Prompt: {res.get('usage', {}).get('prompt_tokens', 0)}, Comp: {res.get('usage', {}).get('completion_tokens', 0)})")
+            print(f"    Cost    : ${res.get('usage', {}).get('cost_usd', 0.0):.6f}")
+        except Exception as e:
+            print(f"  [-] Inference probe failed: {e}")
+
+        print("\n" + "=" * 64)
         return
 
     # Bare 'enki gateway' displays active gateway and available choices
@@ -322,6 +396,8 @@ Examples:
     p_run.add_argument("--model", type=str, default="", help="Override model for this run")
     p_run.add_argument("--preset", choices=["frontier", "sota", "value_leader", "cost_optimal", "opencode_leader", "opencode_ultra_value", "opencode_pro", "free_tier"], default="", help="Select preset configuration")
     p_run.add_argument("--dry-run", action="store_true", help="Simulate pipeline without real model or OMP spend")
+    p_run.add_argument("--no-local-research", dest="local_research", action="store_false", default=True, help="Disable local vault search during context step")
+    p_run.add_argument("--find-research", dest="find_research", action="store_true", default=False, help="Search the internet, synthesize context, and create new Obsidian research note")
     p_run.set_defaults(func=cmd_run)
 
     # context
@@ -331,6 +407,8 @@ Examples:
     p_ctx.add_argument("--model", type=str, default="", help="Override model for context extraction")
     p_ctx.add_argument("--preset", choices=["frontier", "sota", "value_leader", "cost_optimal", "opencode_leader", "opencode_ultra_value", "opencode_pro", "free_tier"], default="", help="Select preset configuration")
     p_ctx.add_argument("--dry-run", action="store_true", help="Simulate context extraction without model spend")
+    p_ctx.add_argument("--no-local-research", dest="local_research", action="store_false", default=True, help="Disable local vault search during context step")
+    p_ctx.add_argument("--find-research", dest="find_research", action="store_true", default=False, help="Search the internet, synthesize context, and create new Obsidian research note")
     p_ctx.set_defaults(func=cmd_context)
 
     # handshake
@@ -352,8 +430,10 @@ Examples:
     p_sc.set_defaults(func=cmd_sync)
 
     # gateway
-    p_gw = subparsers.add_parser("gateway", help="View or switch AI model gateways (OpenRouter / OpenCode Zen)")
+    p_gw = subparsers.add_parser("gateway", help="View, switch, or test AI model gateways (OpenRouter / OpenCode Zen)")
     p_gw.add_argument("--set", type=str, default="", help="Switch active gateway (openrouter | opencode_zen)")
+    p_gw.add_argument("--test", action="store_true", help="Test live connection to active gateway and model routers")
+    p_gw.add_argument("--model", type=str, default="", help="Optional model override for connectivity test")
     p_gw.set_defaults(func=cmd_gateway)
 
     # models

@@ -151,6 +151,8 @@ class Run(BaseModel):
     gateway: str = "openrouter"
     model_override: Optional[str] = None
     preset: Optional[str] = None
+    local_research: bool = True
+    find_research: bool = False
     created_at: str = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat())
     started_at: Optional[str] = None
     completed_at: Optional[str] = None

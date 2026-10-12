@@ -174,3 +174,47 @@ def test_project_exclusion_bodyme():
         enforce_project_inclusion("Body.me App")
 
     enforce_project_inclusion("Dinner Service Optimizer")
+
+
+def test_obsidian_research_note_creation(fixture_vault):
+    """Test automated creation and linking of new research notes in 50_Knowledge/."""
+    indexer = ObsidianIndexer(fixture_vault)
+    note_path = indexer.create_research_note(
+        title="Swarm Drone Fleet Simulation",
+        summary="Decentralized consensus and physics engine benchmark for autonomous micro-drones.",
+        core_concepts=["Decentralized POMDP", "Centralized Training with Decentralized Execution (CTDE)"],
+        architecture="ROS2 multi-node simulation with Ray RLLIB backend.",
+        code_examples="def update_swarm_positions(): pass",
+        tags=["research", "robotics", "swarm-drones"],
+        related_links=["[[Knowledge Hub]]", "[[Multiagent RL]]"]
+    )
+
+    assert note_path.is_file()
+    content = note_path.read_text(encoding="utf-8")
+    assert "type: research" in content
+    assert "status: evergreen" in content
+    assert "Swarm Drone Fleet Simulation" in content
+    assert "[[Knowledge Hub]]" in content
+    assert "[[Multiagent RL]]" in content
+    assert "Decentralized POMDP" in content
+    assert "ROS2 multi-node simulation" in content
+
+
+def test_obsidian_search_relevance_exclusion(fixture_vault):
+    """Test that lifestyle/athletics notes and action verbs like 'run' are excluded from technical context searches."""
+    # Create mock athletics note and technical note in fixture vault
+    ath_dir = fixture_vault / "60_Inspiration" / "Athletics & Training"
+    ath_dir.mkdir(parents=True, exist_ok=True)
+    (ath_dir / "Running (findyourstridecoach).md").write_text("# Running\nRunning form and gait.", encoding="utf-8")
+
+    tech_dir = fixture_vault / "50_Knowledge" / "Reinforcement Learning"
+    tech_dir.mkdir(parents=True, exist_ok=True)
+    (tech_dir / "Multiagent RL.md").write_text("# Multiagent RL\nSwarm coordination and drone simulation.", encoding="utf-8")
+
+    indexer = ObsidianIndexer(fixture_vault)
+
+    # Technical query containing verb 'run' must NOT return Running note
+    hits = indexer.search_vault("run swarm drone fleet simulation")
+    paths = [h["path"] for h in hits]
+    assert not any("Running" in p for p in paths)
+    assert any("Multiagent RL" in p for p in paths)

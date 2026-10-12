@@ -54,6 +54,8 @@ class RunManager:
         model_override: Optional[str] = None,
         preset: Optional[str] = None,
         base_branch: str = "HEAD",
+        local_research: bool = True,
+        find_research: bool = False,
         step_definitions: Optional[List[Dict[str, Any]]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Run:
@@ -91,6 +93,8 @@ class RunManager:
             gateway=gateway,
             model_override=model_override,
             preset=preset,
+            local_research=local_research,
+            find_research=find_research,
             branch_name=f"enki/run/{run_id}",
             base_branch=base_branch,
             steps=steps,
