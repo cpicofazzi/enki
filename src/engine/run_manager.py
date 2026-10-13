@@ -7,6 +7,9 @@ run lifecycle, atomic serialization, replay, and resume from failed steps.
 import os
 import json
 import uuid
+import time
+import shutil
+import threading
 import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Literal, Callable, Union
@@ -18,6 +21,38 @@ from src.engine.models import (
 )
 from src.engine.events import EventBus, get_event_bus
 from src.token_tracker import get_run_telemetry
+
+_run_file_lock = threading.RLock()
+
+
+def safe_atomic_replace(
+    tmp_file: Path,
+    target_file: Path,
+    max_attempts: int = 25,
+    delay: float = 0.04
+) -> None:
+    """
+    Safely replaces target_file with tmp_file atomically.
+    On Windows, handles transient file locks (WinError 5 / WinError 32) caused by
+    concurrent readers (e.g. FastAPI / ASGI endpoints) by retrying with brief backoff.
+    Falls back to copy-and-unlink if file replacement is blocked.
+    """
+    last_err: Optional[Exception] = None
+    for attempt in range(max_attempts):
+        try:
+            tmp_file.replace(target_file)
+            return
+        except (PermissionError, OSError) as e:
+            last_err = e
+            if attempt == max_attempts - 1:
+                try:
+                    shutil.copyfile(str(tmp_file), str(target_file))
+                    if tmp_file.exists():
+                        tmp_file.unlink(missing_ok=True)
+                    return
+                except Exception:
+                    raise last_err
+            time.sleep(delay)
 
 
 class RunManager:
@@ -111,30 +146,32 @@ class RunManager:
         return run
 
     def save_run(self, run: Run) -> None:
-        """Atomic write: writes to .tmp file then renames to prevent corruption on abrupt termination."""
-        state_file = self.get_run_state_file(run.run_id)
-        state_file.parent.mkdir(parents=True, exist_ok=True)
-        tmp_file = state_file.with_suffix(".tmp")
-        content = run.model_dump_json(indent=2)
-        with open(tmp_file, "w", encoding="utf-8") as f:
-            f.write(content)
-        tmp_file.replace(state_file)
+        """Atomic write: writes to .tmp file then renames with retry to prevent corruption on abrupt termination."""
+        with _run_file_lock:
+            state_file = self.get_run_state_file(run.run_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp_file = state_file.with_suffix(".tmp")
+            content = run.model_dump_json(indent=2)
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                f.write(content)
+            safe_atomic_replace(tmp_file, state_file)
 
-        # Mirror context payload if present
-        if run.payload:
-            payload_file = self.get_context_payload_file(run.run_id)
-            tmp_payload = payload_file.with_suffix(".tmp")
-            with open(tmp_payload, "w", encoding="utf-8") as f:
-                json.dump(run.payload, f, indent=2)
-            tmp_payload.replace(payload_file)
+            # Mirror context payload if present
+            if run.payload:
+                payload_file = self.get_context_payload_file(run.run_id)
+                tmp_payload = payload_file.with_suffix(".tmp")
+                with open(tmp_payload, "w", encoding="utf-8") as f:
+                    json.dump(run.payload, f, indent=2)
+                safe_atomic_replace(tmp_payload, payload_file)
 
     def load_run(self, run_id: str) -> Run:
-        state_file = self.get_run_state_file(run_id)
-        if not state_file.is_file():
-            raise FileNotFoundError(f"Run {run_id} does not exist at {state_file}")
-        with open(state_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return Run.model_validate(data)
+        with _run_file_lock:
+            state_file = self.get_run_state_file(run_id)
+            if not state_file.is_file():
+                raise FileNotFoundError(f"Run {run_id} does not exist at {state_file}")
+            with open(state_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return Run.model_validate(data)
 
     def list_runs(self, limit: int = 100) -> List[RunSummary]:
         summaries: List[RunSummary] = []
@@ -335,7 +372,7 @@ class RunManager:
             tmp_payload = payload_file.with_suffix(".tmp")
             with open(tmp_payload, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=2)
-            tmp_payload.replace(payload_file)
+            safe_atomic_replace(tmp_payload, payload_file)
         elif run.payload:
             # Ensure existing payload is mirrored to context_payload.json on disk
             payload_file = self.get_context_payload_file(run.run_id)
@@ -343,7 +380,7 @@ class RunManager:
                 tmp_payload = payload_file.with_suffix(".tmp")
                 with open(tmp_payload, "w", encoding="utf-8") as f:
                     json.dump(run.payload, f, indent=2)
-                tmp_payload.replace(payload_file)
+                safe_atomic_replace(tmp_payload, payload_file)
 
         # 4. State transitions based on action
         if action_enum in (GateAction.APPROVE, GateAction.EDIT_AND_APPROVE):

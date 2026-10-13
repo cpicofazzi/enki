@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from src.config import load_config
+from src.engine.run_manager import safe_atomic_replace
 
 
 class VaultBoundaryViolationError(Exception):
@@ -155,7 +156,7 @@ class ObsidianVaultGuard:
             tmp_file = target_file.with_suffix(".tmp")
             with open(tmp_file, "w", encoding="utf-8") as f:
                 f.write(content)
-            tmp_file.replace(target_file)
+            safe_atomic_replace(tmp_file, target_file)
 
     def append_atomic(self, target_file: Path, append_content: str) -> None:
         """Atomically appends content under vault lock."""
@@ -169,7 +170,7 @@ class ObsidianVaultGuard:
             tmp_file = target_file.with_suffix(".tmp")
             with open(tmp_file, "w", encoding="utf-8") as f:
                 f.write(new_content)
-            tmp_file.replace(target_file)
+            safe_atomic_replace(tmp_file, target_file)
 
     def update_task_note(
         self,
@@ -214,7 +215,7 @@ class ObsidianVaultGuard:
             tmp_file = note_path.with_suffix(".tmp")
             with open(tmp_file, "w", encoding="utf-8") as f:
                 f.write(new_content)
-            tmp_file.replace(note_path)
+            safe_atomic_replace(tmp_file, note_path)
 
         return True
 

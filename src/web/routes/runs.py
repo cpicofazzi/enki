@@ -3,6 +3,7 @@ src/web/routes/runs.py
 REST API endpoints for runs lifecycle, states, gates, budgets, and worktree actions (F36).
 """
 
+import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Literal
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
@@ -13,8 +14,26 @@ from src.engine.models import RunStatus, GateAction, BudgetDecision
 from src.engine.worktree_manager import WorktreeManager
 from src.web.security import redact_data
 
+logger = logging.getLogger("enki.web.runs")
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
+
+
+def _dispatch_run_execution(run_id: str, dry_run: bool = False) -> None:
+    """Starts run state and executes workflow DAG in background."""
+    mgr = RunManager()
+    try:
+        mgr.start_run(run_id)
+    except Exception as e:
+        logger.error(f"Error starting run {run_id}: {e}")
+        return
+
+    try:
+        from src.engine.workflow_engine import WorkflowEngine
+        engine = WorkflowEngine(run_manager=mgr)
+        engine.execute_dag(run_id=run_id, dry_run=dry_run, raise_on_gate=False)
+    except Exception as e:
+        logger.info(f"Workflow execution finished or paused for {run_id}: {e}")
 
 
 class CreateRunRequest(BaseModel):
@@ -75,8 +94,8 @@ def create_run(req: CreateRunRequest, background_tasks: BackgroundTasks):
     )
 
     if req.start_immediately:
-        # Launch start_run in background
-        background_tasks.add_task(mgr.start_run, run.run_id)
+        # Launch run execution in background
+        background_tasks.add_task(_dispatch_run_execution, run.run_id, req.dry_run)
 
     return redact_data({
         "success": True,
@@ -122,7 +141,7 @@ def start_run(run_id: str, background_tasks: BackgroundTasks):
     mgr = RunManager()
     try:
         run = mgr.load_run(run_id)
-        background_tasks.add_task(mgr.start_run, run_id)
+        background_tasks.add_task(_dispatch_run_execution, run_id, run.dry_run)
         return {"success": True, "message": f"Run {run_id} started."}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
@@ -134,6 +153,8 @@ def resume_run(run_id: str, from_step_id: Optional[str] = None, background_tasks
     mgr = RunManager()
     try:
         run = mgr.resume_run(run_id, from_step_id=from_step_id)
+        if background_tasks:
+            background_tasks.add_task(_dispatch_run_execution, run_id, run.dry_run)
         return redact_data({"success": True, "run": run.model_dump()})
     except (FileNotFoundError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
