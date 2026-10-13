@@ -53,6 +53,7 @@ class EventType(str, Enum):
     TELEMETRY_UPDATED = "telemetry_updated"
     WORKTREE_CREATED = "worktree_created"
     WORKTREE_RESOLVED = "worktree_resolved"
+    RUN_DELETED = "run_deleted"
 
 
 class GateAction(str, Enum):

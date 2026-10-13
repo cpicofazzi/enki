@@ -555,6 +555,35 @@ async def test_tui_flow_finished_runs_worktree_teardown(seeded_tui_app, fixture_
 
 
 @pytest.mark.asyncio
+async def test_tui_flow_delete_run(seeded_tui_app):
+    """
+    Verifies deleting a run in RunHistoryScreen:
+    Triggers action_delete_run, confirms via ConfirmModal, and verifies removal.
+    """
+    async with seeded_tui_app.run_test(size=(120, 36)) as pilot:
+        await pilot.press("escape")
+        await pilot.press("9")
+        await pilot.pause()
+
+        screen = seeded_tui_app.screen
+        tbl = screen.query_one("#tbl_run_history", DataTable)
+        initial_count = tbl.row_count
+        assert initial_count >= 1
+
+        # Select first row and trigger delete
+        screen.action_delete_run()
+        await pilot.pause()
+
+        # If ConfirmModal pushed, confirm deletion
+        if type(seeded_tui_app.screen).__name__ == "ConfirmModal":
+            seeded_tui_app.screen.action_confirm()
+            await pilot.pause()
+
+        # Verify run count decreased
+        assert tbl.row_count == initial_count - 1
+
+
+@pytest.mark.asyncio
 async def test_tui_suite_fast_execution_benchmark(seeded_tui_app):
     """
     Invariance Test:

@@ -25,37 +25,131 @@ class SubagentFlowModal(ModalScreen[None]):
         Binding("enter", "dismiss_modal", "Close", priority=False),
     ]
 
+    DEFAULT_CSS = """
+    SubagentFlowModal #subagent_flow_dialog {
+        width: 92%;
+        height: 90%;
+        background: #0f172a;
+        border: solid #38bdf8;
+        padding: 1;
+    }
+
+    SubagentFlowModal .flow-header-row {
+        height: auto;
+        margin-bottom: 1;
+        border-bottom: solid #1e293b;
+        padding-bottom: 1;
+    }
+
+    SubagentFlowModal #flow_modal_title {
+        color: #38bdf8;
+        text-style: bold;
+        width: 80%;
+    }
+
+    SubagentFlowModal #btn_close_flow_modal {
+        width: 20%;
+    }
+
+    SubagentFlowModal #subagent_flow_scroll {
+        height: 1fr;
+    }
+
+    SubagentFlowModal .flow-section-title-1 {
+        color: #f59e0b;
+        text-style: bold;
+        margin-top: 1;
+    }
+
+    SubagentFlowModal .flow-section-title-2 {
+        color: #38bdf8;
+        text-style: bold;
+        margin-top: 1;
+    }
+
+    SubagentFlowModal .flow-section-title-3 {
+        color: #a855f7;
+        text-style: bold;
+        margin-top: 1;
+    }
+
+    SubagentFlowModal #lbl_subagent_pipeline_art {
+        background: #020617;
+        padding: 1;
+        border: solid #1e293b;
+        margin-bottom: 1;
+    }
+
+    SubagentFlowModal #lbl_notes_boundary_status,
+    SubagentFlowModal #lbl_code_location_status {
+        color: #94a3b8;
+        margin-bottom: 1;
+    }
+
+    SubagentFlowModal .flow-subtitle {
+        color: #e2e8f0;
+        text-style: italic;
+    }
+
+    SubagentFlowModal #tbl_flow_notes_read {
+        height: 7;
+        margin-bottom: 1;
+    }
+
+    SubagentFlowModal #tbl_flow_notes_written {
+        height: 5;
+        margin-bottom: 1;
+    }
+
+    SubagentFlowModal #tbl_flow_code_files {
+        height: 6;
+        margin-bottom: 1;
+    }
+
+    SubagentFlowModal .flow-verification-title {
+        color: #10b981;
+        text-style: bold;
+    }
+
+    SubagentFlowModal #lbl_verification_summary {
+        background: #020617;
+        padding: 1;
+        border: solid #1e293b;
+        margin-bottom: 1;
+    }
+    """
+
     def __init__(self, run_id: str, **kwargs):
         super().__init__(**kwargs)
         self.run_id = run_id
         self.flow_data: Dict[str, Any] = {}
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="subagent_flow_dialog", classes="modal-dialog", style="width: 92%; height: 90%; background: #0f172a; border: solid #38bdf8; padding: 1;"):
-            with Horizontal(style="height: auto; margin-bottom: 1; border-bottom: solid #1e293b; padding-bottom: 1;"):
-                yield Label(f"SUBAGENT FLOW & PROCESSED ARTIFACTS: {self.run_id}", classes="modal-title", style="color: #38bdf8; font-weight: bold; width: 80%;")
-                yield Button("Close [Esc]", variant="error", id="btn_close_flow_modal", style="width: 20%;")
+        with Vertical(id="subagent_flow_dialog", classes="modal-dialog"):
+            with Horizontal(classes="flow-header-row"):
+                yield Label(f"SUBAGENT FLOW & PROCESSED ARTIFACTS: {self.run_id}", id="flow_modal_title", classes="modal-title")
+                yield Button("Close [Esc]", variant="error", id="btn_close_flow_modal")
 
-            with ScrollableContainer(id="subagent_flow_scroll", style="height: 1fr;"):
+            with ScrollableContainer(id="subagent_flow_scroll"):
                 # Subagent Pipeline Flow
-                yield Label("1. SUBAGENT EXECUTION PIPELINE FLOW", style="color: #f59e0b; font-weight: bold; margin-top: 1;")
-                yield Static(id="lbl_subagent_pipeline_art", style="background: #020617; padding: 1; border: solid #1e293b; margin-bottom: 1;")
+                yield Label("1. SUBAGENT EXECUTION PIPELINE FLOW", classes="flow-section-title-1")
+                yield Static(id="lbl_subagent_pipeline_art")
 
                 # Notes Processed by Hermes
-                yield Label("2. WHERE NOTES HAVE PROCESSED (Hermes - pico-vault)", style="color: #38bdf8; font-weight: bold; margin-top: 1;")
-                yield Static(id="lbl_notes_boundary_status", style="color: #94a3b8; margin-bottom: 1;")
-                yield Label("Notes Read & Indexed for Technical Context:", style="color: #e2e8f0; font-style: italic;")
-                yield DataTable(id="tbl_flow_notes_read", style="height: 7; margin-bottom: 1;")
-                yield Label("Notes Written & Synchronized:", style="color: #e2e8f0; font-style: italic;")
-                yield DataTable(id="tbl_flow_notes_written", style="height: 5; margin-bottom: 1;")
+                yield Label("2. WHERE NOTES HAVE PROCESSED (Hermes - pico-vault)", classes="flow-section-title-2")
+                yield Static(id="lbl_notes_boundary_status")
+                yield Label("Notes Read & Indexed for Technical Context:", classes="flow-subtitle")
+                yield DataTable(id="tbl_flow_notes_read")
+                yield Label("Notes Written & Synchronized:", classes="flow-subtitle")
+                yield DataTable(id="tbl_flow_notes_written")
 
                 # Code Processed by Oh My Pi
-                yield Label("3. WHERE CODE HAS PROCESSED (Oh My Pi - Repository Worktree)", style="color: #a855f7; font-weight: bold; margin-top: 1;")
-                yield Static(id="lbl_code_location_status", style="color: #94a3b8; margin-bottom: 1;")
-                yield Label("Repository Code Files Touched:", style="color: #e2e8f0; font-style: italic;")
-                yield DataTable(id="tbl_flow_code_files", style="height: 6; margin-bottom: 1;")
-                yield Label("Acceptance Criteria Verification Suite:", style="color: #10b981; font-weight: bold;")
-                yield Static(id="lbl_verification_summary", style="background: #020617; padding: 1; border: solid #1e293b; margin-bottom: 1;")
+                yield Label("3. WHERE CODE HAS PROCESSED (Oh My Pi - Repository Worktree)", classes="flow-section-title-3")
+                yield Static(id="lbl_code_location_status")
+                yield Label("Repository Code Files Touched:", classes="flow-subtitle")
+                yield DataTable(id="tbl_flow_code_files")
+                yield Label("Acceptance Criteria Verification Suite:", classes="flow-verification-title")
+                yield Static(id="lbl_verification_summary")
 
     def on_mount(self) -> None:
         tbl_read = self.query_one("#tbl_flow_notes_read", DataTable)

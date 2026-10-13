@@ -7,7 +7,8 @@ import {
   AlertTriangle, 
   Terminal,
   Activity,
-  Layers
+  Layers,
+  Trash2
 } from 'lucide-react';
 
 interface RunSummary {
@@ -53,6 +54,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectRun, onNewRun }) =
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleDeleteRun = async (runId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`Permanently delete run ${runId}?\n\nThis will remove all artifacts, logs, and state files.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/runs/${runId}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchData();
+      } else {
+        alert(`Failed to delete run ${runId}`);
+      }
+    } catch (err) {
+      console.error('Error deleting run:', err);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
@@ -262,19 +280,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectRun, onNewRun }) =
                   <td style={{ padding: '12px 16px' }}>{getStatusBadge(r.status)}</td>
                   <td style={{ padding: '12px 16px' }}>${(r.total_cost_usd || 0).toFixed(4)}</td>
                   <td style={{ padding: '12px 16px' }}>
-                    <button 
-                      onClick={() => onSelectRun(r.run_id)}
-                      style={{ 
-                        background: '#334155', 
-                        color: '#f8fafc', 
-                        border: 'none', 
-                        padding: '4px 12px', 
-                        borderRadius: 4, 
-                        cursor: 'pointer',
-                        fontSize: 12
-                      }}>
-                      View Live
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button 
+                        onClick={() => onSelectRun(r.run_id)}
+                        style={{ 
+                          background: '#334155', 
+                          color: '#f8fafc', 
+                          border: 'none', 
+                          padding: '4px 12px', 
+                          borderRadius: 4, 
+                          cursor: 'pointer',
+                          fontSize: 12
+                        }}>
+                        View Live
+                      </button>
+                      <button 
+                        onClick={(e) => handleDeleteRun(r.run_id, e)}
+                        title={`Delete Run ${r.run_id}`}
+                        style={{ 
+                          background: '#450a0a', 
+                          color: '#fca5a5', 
+                          border: '1px solid #7f1d1d', 
+                          padding: '4px 8px', 
+                          borderRadius: 4, 
+                          cursor: 'pointer',
+                          fontSize: 12,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}>
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

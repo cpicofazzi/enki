@@ -22,7 +22,7 @@ class ConfirmModal(ModalScreen[Optional[Dict[str, Any]]]):
         self,
         title: str = "Confirm Action",
         message: str = "Are you sure you want to proceed?",
-        action: Literal["merge", "keep", "discard", "confirm"] = "confirm",
+        action: Literal["merge", "keep", "discard", "confirm", "delete"] = "confirm",
         run_id: str = "",
         branch_name: str = "",
         target_branch: str = "main",
@@ -39,7 +39,7 @@ class ConfirmModal(ModalScreen[Optional[Dict[str, Any]]]):
         self.diff_stats = diff_stats or {}
 
     def compose(self) -> ComposeResult:
-        dialog_class = "danger-dialog" if self.action == "discard" else "confirm-dialog"
+        dialog_class = "danger-dialog" if self.action in ("discard", "delete") else "confirm-dialog"
         with Vertical(id="teardown_dialog", classes=f"modal-dialog {dialog_class}"):
             yield Label(self.modal_title, id="td_title", classes="modal-title")
             yield Static(self.message, id="td_message")
@@ -49,7 +49,7 @@ class ConfirmModal(ModalScreen[Optional[Dict[str, Any]]]):
                 yield Input(value=self.target_branch, id="target_branch_input")
 
             with Horizontal(classes="modal-btn-row"):
-                btn_variant = "error" if self.action == "discard" else "success"
+                btn_variant = "error" if self.action in ("discard", "delete") else "success"
                 confirm_label = f"Confirm {self.action.capitalize()} [Enter]"
                 yield Button(confirm_label, variant=btn_variant, id="btn_confirm")
                 yield Button("Cancel [Esc]", variant="default", id="btn_cancel")

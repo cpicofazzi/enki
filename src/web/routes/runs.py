@@ -247,3 +247,13 @@ def resolve_worktree(run_id: str, req: WorktreeActionRequest):
         return redact_data({"success": True, "action": req.action, "result": res})
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/{run_id}")
+def delete_run(run_id: str):
+    """Permanently deletes a run, its persisted state artifacts, and associated worktree."""
+    mgr = RunManager()
+    deleted = mgr.delete_run(run_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+    return {"success": True, "message": f"Run '{run_id}' deleted successfully."}

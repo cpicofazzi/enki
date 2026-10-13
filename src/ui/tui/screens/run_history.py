@@ -26,6 +26,7 @@ class RunHistoryScreen(Screen):
         Binding("p", "replay_run", "Replay", priority=False),
         Binding("r", "resume_failed", "Resume Failed", priority=False),
         Binding("d", "history_diff", "View Diff", priority=False),
+        Binding("x", "delete_run", "Delete Run", priority=False),
         Binding("u", "refresh_history", "Refresh", priority=False),
     ]
 
@@ -47,6 +48,7 @@ class RunHistoryScreen(Screen):
                 yield Button("Resume Failed Step [R]", variant="warning", id="btn_resume_failed")
                 yield Button("View Git Diff [D]", variant="default", id="btn_history_diff")
                 yield Button("View Payload [E]", variant="default", id="btn_history_payload")
+                yield Button("Delete Run [X]", variant="error", id="btn_delete_run")
 
     def on_mount(self) -> None:
         table = self.query_one("#tbl_run_history", DataTable)
@@ -213,3 +215,49 @@ class RunHistoryScreen(Screen):
 
     def action_refresh_history(self) -> None:
         self.refresh_history()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id
+        if btn_id == "btn_view_flow":
+            self.action_view_subagents_flow()
+        elif btn_id == "btn_view_historical":
+            self.action_view_historical()
+        elif btn_id == "btn_replay_run":
+            self.action_replay_run()
+        elif btn_id == "btn_resume_failed":
+            self.action_resume_failed()
+        elif btn_id == "btn_history_diff":
+            self.action_history_diff()
+        elif btn_id == "btn_history_payload":
+            self.action_history_payload()
+        elif btn_id == "btn_delete_run":
+            self.action_delete_run()
+
+    def action_delete_run(self) -> None:
+        run_id = self._get_selected_run_id()
+        if not run_id:
+            self.notify("No run selected to delete.", severity="warning")
+            return
+
+        def _do_delete(res) -> None:
+            if res and res.get("confirmed"):
+                rm = getattr(self.app, "run_manager", None)
+                if rm:
+                    if rm.delete_run(run_id):
+                        self.notify(f"Run {run_id} permanently deleted.", severity="information")
+                        self.refresh_history()
+                        try:
+                            self.query_one("#lbl_history_details", Static).update("Select a run above to view execution details.")
+                        except Exception:
+                            pass
+                    else:
+                        self.notify(f"Failed to delete {run_id}.", severity="error")
+
+        from src.ui.tui.modals.confirm_modal import ConfirmModal
+        modal = ConfirmModal(
+            title="Permanently Delete Run",
+            message=f"Are you sure you want to delete run '{run_id}'?\nThis removes all state files and git worktrees.",
+            action="delete",
+            run_id=run_id
+        )
+        self.app.push_screen(modal, callback=_do_delete)

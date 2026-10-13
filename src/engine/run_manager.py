@@ -206,6 +206,47 @@ class RunManager:
         summaries.sort(key=lambda s: s.created_at, reverse=True)
         return summaries[:limit]
 
+    def delete_run(self, run_id: str) -> bool:
+        """
+        Permanently deletes a run's directory (data/runs/<run_id>) and state files.
+        Safely attempts worktree cleanup if metadata is present.
+        """
+        with _run_file_lock:
+            run_dir = self.get_run_dir(run_id)
+            if not run_dir.exists():
+                return False
+
+            # Attempt worktree discard if repo path is known
+            try:
+                run = self.load_run(run_id)
+                repo_path_str = (run.metadata or {}).get("repo_path")
+                if repo_path_str:
+                    from src.engine.worktree_manager import WorktreeManager
+                    wt_mgr = WorktreeManager()
+                    wt_mgr.discard_worktree(Path(repo_path_str), run_id)
+            except Exception:
+                pass
+
+            def _handle_remove_readonly(func, path, _):
+                import stat
+                try:
+                    os.chmod(path, stat.S_IWRITE)
+                    func(path)
+                except Exception:
+                    pass
+
+            try:
+                shutil.rmtree(run_dir, onerror=_handle_remove_readonly)
+            except Exception:
+                shutil.rmtree(run_dir, ignore_errors=True)
+
+            self.event_bus.publish(RunEvent(
+                run_id=run_id,
+                event_type=EventType.RUN_DELETED,
+                payload={"run_id": run_id}
+            ))
+            return True
+
     def start_run(self, run_id: str) -> Run:
         run = self.load_run(run_id)
         run.status = RunStatus.RUNNING

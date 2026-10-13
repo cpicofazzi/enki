@@ -24,6 +24,7 @@ class DashboardScreen(Screen):
         Binding("n", "new_run", "New Run", priority=False),
         Binding("r", "refresh", "Refresh", priority=False),
         Binding("g", "resolve_gate", "Resolve Gate", priority=False),
+        Binding("x", "delete_run", "Delete Run", priority=False),
         Binding("enter", "view_selected", "View Selected", priority=False),
     ]
 
@@ -56,6 +57,7 @@ class DashboardScreen(Screen):
                 yield Button("New Run [N]", variant="primary", id="btn_new_run")
                 yield Button("View Selected [Enter]", variant="default", id="btn_view_run")
                 yield Button("Resolve Gate [G]", variant="warning", id="btn_resolve_gate")
+                yield Button("Delete Run [X]", variant="error", id="btn_delete_run")
                 yield Button("Refresh [R]", variant="default", id="btn_refresh_dash")
 
     def on_mount(self) -> None:
@@ -158,6 +160,8 @@ class DashboardScreen(Screen):
             self.action_view_selected()
         elif btn_id == "btn_resolve_gate":
             self.action_resolve_gate()
+        elif btn_id == "btn_delete_run":
+            self.action_delete_run()
 
     def action_new_run(self) -> None:
         self.app.switch_screen("start_run")
@@ -189,3 +193,32 @@ class DashboardScreen(Screen):
             self.app.switch_screen("live_run")
         except Exception:
             pass
+
+    def action_delete_run(self) -> None:
+        table = self.query_one("#tbl_active_runs", DataTable)
+        try:
+            row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
+            row_data = table.get_row(row_key)
+            run_id = row_data[0]
+        except Exception:
+            self.notify("No run selected to delete.", severity="warning")
+            return
+
+        def _do_delete(res) -> None:
+            if res and res.get("confirmed"):
+                rm = getattr(self.app, "run_manager", None)
+                if rm:
+                    if rm.delete_run(run_id):
+                        self.notify(f"Run {run_id} permanently deleted.", severity="information")
+                        self.refresh_dashboard()
+                    else:
+                        self.notify(f"Failed to delete {run_id}.", severity="error")
+
+        from src.ui.tui.modals.confirm_modal import ConfirmModal
+        modal = ConfirmModal(
+            title="Permanently Delete Run",
+            message=f"Are you sure you want to delete run '{run_id}'?\nThis removes all state files and git worktrees.",
+            action="delete",
+            run_id=run_id
+        )
+        self.app.push_screen(modal, callback=_do_delete)

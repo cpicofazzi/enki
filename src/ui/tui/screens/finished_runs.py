@@ -25,6 +25,7 @@ class FinishedRunsScreen(Screen):
         Binding("m", "merge", "Merge", priority=False),
         Binding("k", "keep", "Keep", priority=False),
         Binding("d", "discard", "Discard", priority=False),
+        Binding("x", "delete_run", "Delete Run", priority=False),
         Binding("r", "refresh", "Refresh", priority=False),
     ]
 
@@ -58,6 +59,7 @@ class FinishedRunsScreen(Screen):
                     yield Button("Merge into Target Branch [M]", variant="success", id="btn_merge_worktree")
                     yield Button("Keep Branch [K]", variant="primary", id="btn_keep_worktree")
                     yield Button("Discard Branch [D]", variant="error", id="btn_discard_worktree")
+                    yield Button("Delete Run [X]", variant="error", id="btn_delete_run")
 
     def on_mount(self) -> None:
         table = self.query_one("#tbl_worktrees", DataTable)
@@ -157,6 +159,8 @@ class FinishedRunsScreen(Screen):
             self.action_keep()
         elif btn_id == "btn_discard_worktree":
             self.action_discard()
+        elif btn_id == "btn_delete_run":
+            self.action_delete_run()
 
     def action_merge(self) -> None:
         run_id = self._get_selected_run_id()
@@ -218,3 +222,33 @@ class FinishedRunsScreen(Screen):
 
     def action_refresh(self) -> None:
         self.refresh_worktrees()
+
+    def action_delete_run(self) -> None:
+        run_id = self._get_selected_run_id()
+        if not run_id:
+            self.notify("No run selected to delete.", severity="warning")
+            return
+
+        def _do_delete(res) -> None:
+            if res and res.get("confirmed"):
+                rm = getattr(self.app, "run_manager", None)
+                if rm:
+                    if rm.delete_run(run_id):
+                        self.notify(f"Run {run_id} permanently deleted.", severity="information")
+                        self.refresh_worktrees()
+                        try:
+                            self.query_one("#txt_diff_view", TextArea).text = "# Select a worktree branch above to inspect git diff"
+                        except Exception:
+                            pass
+                    else:
+                        self.notify(f"Failed to delete {run_id}.", severity="error")
+
+        self.app.push_screen(
+            ConfirmModal(
+                title=f"Permanently Delete Run {run_id}",
+                message="Are you sure you want to delete this run? All artifacts and worktrees will be removed.",
+                action="delete",
+                run_id=run_id
+            ),
+            callback=_do_delete
+        )

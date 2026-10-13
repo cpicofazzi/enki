@@ -96,7 +96,9 @@ class EnkiTUIApp(App):
         Binding("f10", "force_nav('finished_runs')", "F10:Finished", show=False, priority=True),
 
         # Global Control & Anti-Trap
-        Binding("escape", "handle_escape", "Escape/Blur", show=True, priority=True),
+        Binding("b", "back_screen", "Back", show=True, priority=False),
+        Binding("ctrl+b", "back_screen", "Back", show=False, priority=True),
+        Binding("escape", "handle_escape", "Back / Blur", show=True, priority=True),
         Binding("question_mark", "help", "Help (?)", show=True, priority=False),
         Binding("q", "quit_app", "Quit", show=True, priority=False),
         Binding("ctrl+c", "quit_app", "Quit", show=False, priority=True),
@@ -120,7 +122,9 @@ class EnkiTUIApp(App):
         self.obsidian_indexer = ObsidianIndexer()
         self.config = load_config()
 
-        # Cross-Screen Shared State
+        # Cross-Screen Shared State & Navigation History
+        self.screen_history: List[str] = []
+        self.active_screen_name: str = "dashboard"
         self.active_run_id: Optional[str] = None
         self.prefill_task: Optional[str] = None
         self.prefill_project: Optional[str] = None
@@ -134,16 +138,38 @@ class EnkiTUIApp(App):
         self.push_screen("dashboard")
 
     def action_nav_screen(self, screen_name: str) -> None:
-        """Navigates to the specified screen."""
+        """Navigates to the specified screen and updates screen history."""
         if screen_name in self.SCREENS:
             self._close_modals()
+            if self.active_screen_name != screen_name:
+                self.screen_history.append(self.active_screen_name)
+                self.active_screen_name = screen_name
             self.switch_screen(screen_name)
 
     def action_force_nav(self, screen_name: str) -> None:
         """Unconditionally navigates to the specified screen, bypassing focus."""
         if screen_name in self.SCREENS:
             self._close_modals()
+            if self.active_screen_name != screen_name:
+                self.screen_history.append(self.active_screen_name)
+                self.active_screen_name = screen_name
             self.switch_screen(screen_name)
+
+    def action_back(self) -> None:
+        """Navigates back to the previous screen or returns to dashboard."""
+        self._close_modals()
+        while self.screen_history:
+            prev = self.screen_history.pop()
+            if prev in self.SCREENS and prev != self.active_screen_name:
+                self.active_screen_name = prev
+                self.switch_screen(prev)
+                return
+        self.active_screen_name = "dashboard"
+        self.switch_screen("dashboard")
+
+    def action_back_screen(self) -> None:
+        """Hotkey action alias for back navigation."""
+        self.action_back()
 
     def _close_modals(self) -> None:
         """Pops any modal overlays so screen switching targets the base screen."""
@@ -156,11 +182,19 @@ class EnkiTUIApp(App):
             self.push_screen(HelpModal())
 
     def action_handle_escape(self) -> None:
-        """Anti-trap escape handler: dismisses active modal or blurs current focused widget.
+        """Anti-trap escape handler: dismisses active modal, blurs focused text input, or navigates back."""
+        # 1. Pop modal dialog overlay if open
+        if isinstance(self.screen, ModalScreen):
+            self.pop_screen()
+            return
 
-        If the active screen declares its own ``escape`` binding (e.g. a modal whose
-        escape means "abort"/"pause"), that action is run so result callbacks fire.
-        """
+        # 2. If a text field (Input or TextArea) currently has focus, blur it so navigation keys work
+        from textual.widgets import TextArea, Input
+        if self.screen.focused is not None and isinstance(self.screen.focused, (TextArea, Input)):
+            self.screen.set_focus(None)
+            return
+
+        # 3. Check if active screen declares custom escape/cancel/discard/back behavior
         screen = self.screen
         for binding in getattr(screen, "BINDINGS", []):
             key = binding.key if isinstance(binding, Binding) else binding[0]
@@ -170,10 +204,22 @@ class EnkiTUIApp(App):
                 if handler is not None:
                     handler()
                     return
-        if isinstance(screen, ModalScreen):
-            self.pop_screen()
+
+        if hasattr(screen, "action_cancel"):
+            screen.action_cancel()
+            return
+        if hasattr(screen, "action_discard"):
+            screen.action_discard()
+            return
+        if hasattr(screen, "action_back"):
+            screen.action_back()
+            return
+
+        # 4. If not on dashboard, navigate back to previous screen or dashboard
+        if self.active_screen_name != "dashboard" or type(self.screen).__name__ != "DashboardScreen":
+            self.action_back()
         else:
-            screen.set_focus(None)
+            self.screen.set_focus(None)
 
     def action_quit_app(self) -> None:
         """Exits the application cleanly."""
@@ -182,7 +228,7 @@ class EnkiTUIApp(App):
     def view_run(self, run_id: str) -> None:
         """Sets active run and switches immediately to LiveRunScreen."""
         self.active_run_id = run_id
-        self.switch_screen("live_run")
+        self.action_nav_screen("live_run")
 
     def on_engine_run_event(self, message: EngineRunEvent) -> None:
         """Delivers engine events down to active screen or LiveRunScreen."""

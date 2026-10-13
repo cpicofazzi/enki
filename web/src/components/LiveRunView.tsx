@@ -18,7 +18,8 @@ import {
   Eye,
   FileText,
   ShieldCheck,
-  Compass
+  Compass,
+  Trash2
 } from 'lucide-react';
 
 interface LiveRunViewProps {
@@ -187,6 +188,25 @@ export const LiveRunView: React.FC<LiveRunViewProps> = ({ runId, onBack }) => {
     }
   };
 
+  const handleDeleteRun = async () => {
+    if (!window.confirm(`Permanently delete run ${runId}?\n\nThis will remove all artifacts, logs, and state files.`)) {
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/runs/${runId}`, { method: 'DELETE' });
+      if (res.ok) {
+        onBack();
+      } else {
+        alert(`Failed to delete run ${runId}`);
+      }
+    } catch (e) {
+      console.error('Delete run error:', e);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const getSubagentIcon = (id: string) => {
     switch (id) {
       case 'hermes':
@@ -221,20 +241,42 @@ export const LiveRunView: React.FC<LiveRunViewProps> = ({ runId, onBack }) => {
           </div>
         </div>
 
-        {/* Worktree Teardown Controls for completed runs */}
-        {run?.status === 'completed' && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => handleWorktreeAction('merge')} disabled={actionLoading} style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <GitPullRequest size={14} /> Merge
-            </button>
-            <button onClick={() => handleWorktreeAction('keep')} disabled={actionLoading} style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <GitCommit size={14} /> Keep Branch
-            </button>
-            <button onClick={() => handleWorktreeAction('discard')} disabled={actionLoading} style={{ background: '#e11d48', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <X size={14} /> Discard
-            </button>
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Worktree Teardown Controls for completed runs */}
+          {run?.status === 'completed' && (
+            <>
+              <button onClick={() => handleWorktreeAction('merge')} disabled={actionLoading} style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <GitPullRequest size={14} /> Merge
+              </button>
+              <button onClick={() => handleWorktreeAction('keep')} disabled={actionLoading} style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <GitCommit size={14} /> Keep Branch
+              </button>
+              <button onClick={() => handleWorktreeAction('discard')} disabled={actionLoading} style={{ background: '#e11d48', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <X size={14} /> Discard
+              </button>
+            </>
+          )}
+
+          <button 
+            onClick={handleDeleteRun} 
+            disabled={actionLoading} 
+            title="Permanently Delete Run"
+            style={{ 
+              background: '#450a0a', 
+              color: '#fca5a5', 
+              border: '1px solid #7f1d1d', 
+              padding: '6px 12px', 
+              borderRadius: 4, 
+              cursor: 'pointer', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 6,
+              fontSize: 13,
+              fontWeight: 600
+            }}>
+            <Trash2 size={14} /> Delete Run
+          </button>
+        </div>
       </div>
 
       {/* Visual Subagents Flow Pipeline Ribbon */}

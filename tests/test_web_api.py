@@ -128,6 +128,15 @@ def test_list_and_create_run(client, tmp_path, monkeypatch):
     runs = res_list.json()["runs"]
     assert any(r["run_id"] == run_id for r in runs)
 
+    # 4. Delete run
+    res_del = client.delete(f"/api/runs/{run_id}")
+    assert res_del.status_code == 200
+    assert res_del.json()["success"] is True
+
+    # 5. Verify deleted run returns 404
+    res_get_deleted = client.get(f"/api/runs/{run_id}")
+    assert res_get_deleted.status_code == 404
+
 
 def test_resolve_gate_and_budget_api(client, tmp_path, monkeypatch):
     """Test gate resolution and budget resolution endpoints."""

@@ -27,6 +27,7 @@ class LiveRunScreen(Screen):
     """Screen 3: Real-time execution monitor for active or replayed runs."""
 
     BINDINGS = [
+        Binding("escape", "back", "Back", priority=False),
         Binding("f", "view_subagents_flow", "Subagent Flow", priority=False),
         Binding("a", "quick_approve", "Approve Gate", priority=False),
         Binding("e", "quick_edit", "Edit Payload", priority=False),
@@ -86,11 +87,13 @@ class LiveRunScreen(Screen):
                     )
 
             with Horizontal(id="live_footer_actions", classes="action-bar"):
+                yield Button("Back [Esc]", variant="default", id="btn_back_live")
                 yield Button("Subagent Flow [F]", variant="primary", id="btn_view_flow")
                 yield Button("Approve Gate [A]", variant="success", id="btn_quick_approve")
                 yield Button("Edit Payload [E]", variant="default", id="btn_quick_edit")
                 yield Button("Reject [R]", variant="warning", id="btn_quick_reject")
                 yield Button("Abort Run [X]", variant="error", id="btn_quick_abort")
+                yield Button("Delete Run", variant="error", id="btn_delete_run")
 
     def on_mount(self) -> None:
         self.bind_to_current_run()
@@ -303,8 +306,15 @@ class LiveRunScreen(Screen):
             self.action_quick_reject()
         elif btn_id == "btn_quick_abort":
             self.action_quick_abort()
+        elif btn_id == "btn_delete_run":
+            self.action_delete_run()
         elif btn_id == "btn_clear_log":
             self.action_clear_log()
+        elif btn_id == "btn_back_live":
+            self.action_back()
+
+    def action_back(self) -> None:
+        self.app.action_back()
 
     def action_view_subagents_flow(self) -> None:
         if self.current_run_id:
@@ -366,6 +376,32 @@ class LiveRunScreen(Screen):
             return
         gate_id = run.gate_state.gate_id if run.gate_state else f"gate_quick_{self.current_run_id}"
         self._resolve_and_resume(gate_id, GateAction.ABORT.value)
+
+    def action_delete_run(self) -> None:
+        run_id = self.current_run_id
+        if not run_id:
+            self.notify("No active run to delete.", severity="warning")
+            return
+
+        def _do_delete(res) -> None:
+            if res and res.get("confirmed"):
+                rm = getattr(self.app, "run_manager", None)
+                if rm:
+                    if rm.delete_run(run_id):
+                        self.notify(f"Run {run_id} permanently deleted.", severity="information")
+                        self.app.active_run_id = None
+                        self.app.switch_screen("dashboard")
+                    else:
+                        self.notify(f"Failed to delete {run_id}.", severity="error")
+
+        from src.ui.tui.modals.confirm_modal import ConfirmModal
+        modal = ConfirmModal(
+            title="Permanently Delete Run",
+            message=f"Are you sure you want to delete run '{run_id}'?\nThis removes all state files and git worktrees.",
+            action="delete",
+            run_id=run_id
+        )
+        self.app.push_screen(modal, callback=_do_delete)
 
     def action_clear_log(self) -> None:
         self.query_one("#log_stream", RichLog).clear()
