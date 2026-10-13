@@ -161,7 +161,7 @@ def resume_run(run_id: str, from_step_id: Optional[str] = None, background_tasks
 
 
 @router.post("/{run_id}/gate")
-def resolve_gate(run_id: str, req: ResolveGateRequest):
+def resolve_gate(run_id: str, req: ResolveGateRequest, background_tasks: BackgroundTasks):
     """Submits human gate resolution (approve, reject, edit_payload, abort)."""
     mgr = RunManager()
     try:
@@ -172,13 +172,15 @@ def resolve_gate(run_id: str, req: ResolveGateRequest):
             payload=req.payload,
             feedback=req.feedback
         )
+        if req.action in ("approve", "edit_payload", "edit_and_approve"):
+            background_tasks.add_task(_dispatch_run_execution, run_id, run.dry_run)
         return redact_data({"success": True, "run": run.model_dump()})
     except (FileNotFoundError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/{run_id}/budget")
-def resolve_budget(run_id: str, req: ResolveBudgetRequest):
+def resolve_budget(run_id: str, req: ResolveBudgetRequest, background_tasks: BackgroundTasks):
     """Submits budget limit decision (continue, pause, switch_model)."""
     mgr = RunManager()
     try:
@@ -188,6 +190,8 @@ def resolve_budget(run_id: str, req: ResolveBudgetRequest):
             decision=decision,
             cheaper_model=req.cheaper_model
         )
+        if decision in (BudgetDecision.CONTINUE, BudgetDecision.SWITCH_CHEAPER):
+            background_tasks.add_task(_dispatch_run_execution, run_id, run.dry_run)
         return redact_data({"success": True, "run": run.model_dump()})
     except (FileNotFoundError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
