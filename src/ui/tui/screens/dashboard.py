@@ -23,10 +23,16 @@ class DashboardScreen(Screen):
     BINDINGS = [
         Binding("n", "new_run", "New Run", priority=False),
         Binding("r", "refresh", "Refresh", priority=False),
+        Binding("space", "toggle_select", "Toggle Select", priority=False),
+        Binding("a", "select_all", "Select All", priority=False),
         Binding("g", "resolve_gate", "Resolve Gate", priority=False),
         Binding("x", "delete_run", "Delete Run", priority=False),
         Binding("enter", "view_selected", "View Selected", priority=False),
     ]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.selected_run_ids: set[str] = set()
 
     def compose(self) -> ComposeResult:
         yield HeaderBar()
@@ -55,15 +61,17 @@ class DashboardScreen(Screen):
 
             with Horizontal(id="dash_quick_actions", classes="action-bar"):
                 yield Button("New Run [N]", variant="primary", id="btn_new_run")
-                yield Button("View Selected [Enter]", variant="default", id="btn_view_run")
+                yield Button("View [Enter]", variant="default", id="btn_view_run")
+                yield Button("Toggle [Space]", variant="default", id="btn_toggle_select")
+                yield Button("Select All [A]", variant="default", id="btn_select_all")
                 yield Button("Resolve Gate [G]", variant="warning", id="btn_resolve_gate")
-                yield Button("Delete Run [X]", variant="error", id="btn_delete_run")
+                yield Button("Delete [X]", variant="error", id="btn_delete_run")
                 yield Button("Refresh [R]", variant="default", id="btn_refresh_dash")
 
     def on_mount(self) -> None:
         table = self.query_one("#tbl_active_runs", DataTable)
         table.cursor_type = "row"
-        table.add_columns("Run ID", "Task Description", "Project", "Status", "Dry Run", "Cost ($)", "Created")
+        table.add_columns("Sel", "Run ID", "Task Description", "Project", "Status", "Dry Run", "Cost ($)", "Created")
         self.refresh_dashboard()
 
     def on_screen_resume(self) -> None:
@@ -135,10 +143,16 @@ class DashboardScreen(Screen):
                 )
 
                 table = self.query_one("#tbl_active_runs", DataTable)
+                valid_ids = {r.run_id for r in all_runs}
+                self.selected_run_ids = {rid for rid in self.selected_run_ids if rid in valid_ids}
+
                 table.clear()
                 for r in all_runs:
                     status_styled = f"[yellow]{r.status.value}[/]" if "waiting" in r.status.value else r.status.value
+                    is_sel = r.run_id in self.selected_run_ids
+                    sel_mark = "[bold red][x][/]" if is_sel else "[dim][ ][/]"
                     table.add_row(
+                        sel_mark,
                         r.run_id,
                         (r.task[:40] + "...") if len(r.task) > 40 else r.task,
                         r.project,
@@ -150,6 +164,13 @@ class DashboardScreen(Screen):
         except Exception:
             pass
 
+    def _get_run_id_from_row(self, row_data) -> str:
+        if not row_data:
+            return ""
+        if len(row_data) > 1 and ("[" in str(row_data[0])):
+            return str(row_data[1])
+        return str(row_data[0])
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
         if btn_id == "btn_new_run":
@@ -160,6 +181,10 @@ class DashboardScreen(Screen):
             self.action_view_selected()
         elif btn_id == "btn_resolve_gate":
             self.action_resolve_gate()
+        elif btn_id == "btn_toggle_select":
+            self.action_toggle_select()
+        elif btn_id == "btn_select_all":
+            self.action_select_all()
         elif btn_id == "btn_delete_run":
             self.action_delete_run()
 
@@ -169,12 +194,45 @@ class DashboardScreen(Screen):
     def action_refresh(self) -> None:
         self.refresh_dashboard()
 
+    def action_toggle_select(self) -> None:
+        table = self.query_one("#tbl_active_runs", DataTable)
+        try:
+            row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
+            row_data = table.get_row(row_key)
+            run_id = self._get_run_id_from_row(row_data)
+            if not run_id:
+                return
+            if run_id in self.selected_run_ids:
+                self.selected_run_ids.remove(run_id)
+            else:
+                self.selected_run_ids.add(run_id)
+            coord = table.cursor_coordinate
+            self.refresh_dashboard()
+            try:
+                table.cursor_coordinate = coord
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def action_select_all(self) -> None:
+        rm = getattr(self.app, "run_manager", None)
+        if not rm:
+            return
+        all_runs = rm.list_runs(limit=50)
+        all_ids = {r.run_id for r in all_runs}
+        if self.selected_run_ids == all_ids and all_ids:
+            self.selected_run_ids.clear()
+        else:
+            self.selected_run_ids = all_ids
+        self.refresh_dashboard()
+
     def action_view_selected(self) -> None:
         table = self.query_one("#tbl_active_runs", DataTable)
         try:
             row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
             row_data = table.get_row(row_key)
-            run_id = row_data[0]
+            run_id = self._get_run_id_from_row(row_data)
             if hasattr(self.app, "view_run"):
                 self.app.view_run(run_id)
             else:
@@ -188,7 +246,7 @@ class DashboardScreen(Screen):
         try:
             row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
             row_data = table.get_row(row_key)
-            run_id = row_data[0]
+            run_id = self._get_run_id_from_row(row_data)
             self.app.active_run_id = run_id
             self.app.switch_screen("live_run")
         except Exception:
@@ -196,10 +254,39 @@ class DashboardScreen(Screen):
 
     def action_delete_run(self) -> None:
         table = self.query_one("#tbl_active_runs", DataTable)
+        from src.ui.tui.modals.confirm_modal import ConfirmModal
+
+        # 1. Bulk delete if items selected with checkboxes
+        if self.selected_run_ids:
+            target_ids = list(self.selected_run_ids)
+            count = len(target_ids)
+
+            def _do_batch_delete(res) -> None:
+                if res and res.get("confirmed"):
+                    rm = getattr(self.app, "run_manager", None)
+                    if rm:
+                        results = rm.delete_runs(target_ids)
+                        deleted_cnt = sum(1 for ok in results.values() if ok)
+                        self.selected_run_ids.clear()
+                        self.notify(f"{deleted_cnt} runs permanently deleted.", severity="information")
+                        self.refresh_dashboard()
+
+            modal = ConfirmModal(
+                title=f"Permanently Delete {count} Runs",
+                message=f"Are you sure you want to delete {count} selected runs?\nThis permanently removes all state files and git worktrees.",
+                action="delete"
+            )
+            self.app.push_screen(modal, callback=_do_batch_delete)
+            return
+
+        # 2. Single delete of currently highlighted row
         try:
             row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
             row_data = table.get_row(row_key)
-            run_id = row_data[0]
+            run_id = self._get_run_id_from_row(row_data)
+            if not run_id:
+                self.notify("No run selected to delete.", severity="warning")
+                return
         except Exception:
             self.notify("No run selected to delete.", severity="warning")
             return
@@ -214,7 +301,6 @@ class DashboardScreen(Screen):
                     else:
                         self.notify(f"Failed to delete {run_id}.", severity="error")
 
-        from src.ui.tui.modals.confirm_modal import ConfirmModal
         modal = ConfirmModal(
             title="Permanently Delete Run",
             message=f"Are you sure you want to delete run '{run_id}'?\nThis removes all state files and git worktrees.",

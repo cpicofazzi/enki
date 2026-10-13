@@ -138,6 +138,31 @@ def test_list_and_create_run(client, tmp_path, monkeypatch):
     assert res_get_deleted.status_code == 404
 
 
+def test_batch_delete_runs_endpoint(client, tmp_path, monkeypatch):
+    """Test batch delete endpoint permanently deletes multiple selected runs."""
+    mgr = RunManager(base_runs_dir=tmp_path / "runs")
+    monkeypatch.setattr("src.web.routes.runs.RunManager", lambda: mgr)
+
+    r1 = mgr.create_run(task="Run 1", dry_run=True)
+    r2 = mgr.create_run(task="Run 2", dry_run=True)
+    r3 = mgr.create_run(task="Run 3", dry_run=True)
+
+    res = client.post("/api/runs/batch-delete", json={
+        "run_ids": [r1.run_id, r2.run_id]
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    assert r1.run_id in data["deleted"]
+    assert r2.run_id in data["deleted"]
+    assert data["count"] == 2
+
+    # Verify r1 and r2 are gone, r3 remains
+    assert client.get(f"/api/runs/{r1.run_id}").status_code == 404
+    assert client.get(f"/api/runs/{r2.run_id}").status_code == 404
+    assert client.get(f"/api/runs/{r3.run_id}").status_code == 200
+
+
 def test_resolve_gate_and_budget_api(client, tmp_path, monkeypatch):
     """Test gate resolution and budget resolution endpoints."""
     mgr = RunManager(base_runs_dir=tmp_path / "runs")

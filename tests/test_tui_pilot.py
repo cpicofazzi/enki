@@ -657,3 +657,38 @@ async def test_tui_back_navigation_all_screens(seeded_tui_app):
         await pilot.pause()
         assert type(seeded_tui_app.screen).__name__ == "DashboardScreen"
 
+
+@pytest.mark.asyncio
+async def test_tui_multi_delete_runs(seeded_tui_app):
+    """Verifies multi-select checkbox toggling and batch deletion in TUI."""
+    rm = seeded_tui_app.run_manager
+    r1 = rm.create_run(task="Batch Run 1", dry_run=True)
+    r2 = rm.create_run(task="Batch Run 2", dry_run=True)
+
+    async with seeded_tui_app.run_test(size=(120, 36)) as pilot:
+        # Navigate to Screen 9 (Run History)
+        await pilot.press("9")
+        await pilot.pause()
+
+        screen = seeded_tui_app.screen
+        assert type(screen).__name__ == "RunHistoryScreen"
+
+        # Select both runs via selected_run_ids
+        screen.selected_run_ids = {r1.run_id, r2.run_id}
+        initial_count = screen.query_one("#tbl_run_history", DataTable).row_count
+
+        # Trigger batch delete
+        screen.action_delete_run()
+        await pilot.pause()
+
+        # Confirm modal
+        if type(seeded_tui_app.screen).__name__ == "ConfirmModal":
+            seeded_tui_app.screen.action_confirm()
+            await pilot.pause()
+
+        # Verify both runs deleted
+        tbl = screen.query_one("#tbl_run_history", DataTable)
+        assert tbl.row_count == initial_count - 2
+        assert not rm.get_run_dir(r1.run_id).exists()
+        assert not rm.get_run_dir(r2.run_id).exists()
+

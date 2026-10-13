@@ -55,8 +55,8 @@ class EventBus:
             global_callbacks = list(self._global_listeners)
             runs_dir = self._runs_base_dir
 
-        # 2. Append to data/runs/<run_id>/events.jsonl
-        if runs_dir and event.run_id:
+        # 2. Append to data/runs/<run_id>/events.jsonl (skip for deleted runs)
+        if runs_dir and event.run_id and event.event_type != EventType.RUN_DELETED:
             try:
                 run_dir = runs_dir / event.run_id
                 run_dir.mkdir(parents=True, exist_ok=True)

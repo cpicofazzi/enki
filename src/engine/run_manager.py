@@ -247,6 +247,15 @@ class RunManager:
             ))
             return True
 
+    def delete_runs(self, run_ids: list[str]) -> dict[str, bool]:
+        """
+        Permanently deletes multiple runs in bulk and returns a mapping of run_id to success.
+        """
+        results: dict[str, bool] = {}
+        for rid in run_ids:
+            results[rid] = self.delete_run(rid)
+        return results
+
     def start_run(self, run_id: str) -> Run:
         run = self.load_run(run_id)
         run.status = RunStatus.RUNNING

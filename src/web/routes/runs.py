@@ -66,6 +66,10 @@ class WorktreeActionRequest(BaseModel):
     target_branch: str = "main"
 
 
+class BatchDeleteRunsRequest(BaseModel):
+    run_ids: List[str]
+
+
 @router.get("")
 def list_runs(status: Optional[str] = None, limit: int = 50):
     """Lists runs sorted newest first with optional status filtering."""
@@ -261,3 +265,19 @@ def delete_run(run_id: str):
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
     return {"success": True, "message": f"Run '{run_id}' deleted successfully."}
+
+
+@router.post("/batch-delete")
+def batch_delete_runs(req: BatchDeleteRunsRequest):
+    """Permanently deletes multiple runs in bulk, their state files, and worktrees."""
+    mgr = RunManager()
+    results = mgr.delete_runs(req.run_ids)
+    deleted_ids = [rid for rid, ok in results.items() if ok]
+    failed_ids = [rid for rid, ok in results.items() if not ok]
+    return {
+        "success": True,
+        "deleted": deleted_ids,
+        "failed": failed_ids,
+        "count": len(deleted_ids),
+        "message": f"Successfully deleted {len(deleted_ids)} runs."
+    }

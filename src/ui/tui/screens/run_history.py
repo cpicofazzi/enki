@@ -22,6 +22,8 @@ class RunHistoryScreen(Screen):
 
     BINDINGS = [
         Binding("escape", "back", "Back", priority=False),
+        Binding("space", "toggle_select", "Toggle Select", priority=False),
+        Binding("a", "select_all", "Select All", priority=False),
         Binding("f", "view_subagents_flow", "Subagent Flow", priority=False),
         Binding("v", "view_historical", "View Live", priority=False),
         Binding("p", "replay_run", "Replay", priority=False),
@@ -30,6 +32,10 @@ class RunHistoryScreen(Screen):
         Binding("x", "delete_run", "Delete Run", priority=False),
         Binding("u", "refresh_history", "Refresh", priority=False),
     ]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.selected_run_ids: set[str] = set()
 
     def compose(self) -> ComposeResult:
         yield HeaderBar()
@@ -46,16 +52,18 @@ class RunHistoryScreen(Screen):
                 yield Button("Back [Esc]", variant="default", id="btn_back_history")
                 yield Button("Flow [F]", variant="primary", id="btn_view_flow")
                 yield Button("Live [V]", variant="default", id="btn_view_historical")
+                yield Button("Toggle [Space]", variant="default", id="btn_toggle_select")
+                yield Button("Select All [A]", variant="default", id="btn_select_all")
                 yield Button("Replay [P]", variant="default", id="btn_replay_run")
                 yield Button("Resume [R]", variant="warning", id="btn_resume_failed")
                 yield Button("Diff [D]", variant="default", id="btn_history_diff")
                 yield Button("Payload [E]", variant="default", id="btn_history_payload")
-                yield Button("Delete Run [X]", variant="error", id="btn_delete_run")
+                yield Button("Delete [X]", variant="error", id="btn_delete_run")
 
     def on_mount(self) -> None:
         table = self.query_one("#tbl_run_history", DataTable)
         table.cursor_type = "row"
-        table.add_columns("Run ID", "Task", "Project", "Workflow", "Status", "Dry Run", "Tokens", "Cost ($)", "Created")
+        table.add_columns("Sel", "Run ID", "Task", "Project", "Workflow", "Status", "Dry Run", "Tokens", "Cost ($)", "Created")
         self.refresh_history()
 
     def on_screen_resume(self) -> None:
@@ -69,9 +77,15 @@ class RunHistoryScreen(Screen):
         rm = getattr(self.app, "run_manager", None)
         if rm:
             runs = rm.list_runs(limit=100)
+            valid_ids = {r.run_id for r in runs}
+            self.selected_run_ids = {rid for rid in self.selected_run_ids if rid in valid_ids}
+
             for r in runs:
                 status_styled = f"[red]{r.status.value}[/]" if r.status in (RunStatus.FAILED, RunStatus.ABORTED) else r.status.value
+                is_sel = r.run_id in self.selected_run_ids
+                sel_mark = "[bold red][x][/]" if is_sel else "[dim][ ][/]"
                 table.add_row(
+                    sel_mark,
                     r.run_id,
                     (r.task[:32] + "...") if len(r.task) > 32 else r.task,
                     r.project,
@@ -83,24 +97,35 @@ class RunHistoryScreen(Screen):
                     r.created_at[:19].replace("T", " ")
                 )
 
+    def _get_run_id_from_row(self, row) -> Optional[str]:
+        if not row:
+            return None
+        if len(row) > 1 and ("[" in str(row[0])):
+            return str(row[1])
+        return str(row[0])
+
     def _get_selected_run_id(self) -> Optional[str]:
         table = self.query_one("#tbl_run_history", DataTable)
         try:
             row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
             row = table.get_row(row_key)
-            return row[0]
+            return self._get_run_id_from_row(row)
         except Exception:
             return None
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         row = event.data_table.get_row(event.row_key)
-        self.display_run_details(row[0])
+        run_id = self._get_run_id_from_row(row)
+        if run_id:
+            self.display_run_details(run_id)
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         if event.row_key is not None:
             try:
                 row = event.data_table.get_row(event.row_key)
-                self.display_run_details(row[0])
+                run_id = self._get_run_id_from_row(row)
+                if run_id:
+                    self.display_run_details(run_id)
             except Exception:
                 pass
 
@@ -218,12 +243,44 @@ class RunHistoryScreen(Screen):
     def action_refresh_history(self) -> None:
         self.refresh_history()
 
+    def action_toggle_select(self) -> None:
+        run_id = self._get_selected_run_id()
+        if not run_id:
+            return
+        if run_id in self.selected_run_ids:
+            self.selected_run_ids.remove(run_id)
+        else:
+            self.selected_run_ids.add(run_id)
+        table = self.query_one("#tbl_run_history", DataTable)
+        coord = table.cursor_coordinate
+        self.refresh_history()
+        try:
+            table.cursor_coordinate = coord
+        except Exception:
+            pass
+
+    def action_select_all(self) -> None:
+        rm = getattr(self.app, "run_manager", None)
+        if not rm:
+            return
+        runs = rm.list_runs(limit=100)
+        all_ids = {r.run_id for r in runs}
+        if self.selected_run_ids == all_ids and all_ids:
+            self.selected_run_ids.clear()
+        else:
+            self.selected_run_ids = all_ids
+        self.refresh_history()
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
         if btn_id == "btn_view_flow":
             self.action_view_subagents_flow()
         elif btn_id == "btn_view_historical":
             self.action_view_historical()
+        elif btn_id == "btn_toggle_select":
+            self.action_toggle_select()
+        elif btn_id == "btn_select_all":
+            self.action_select_all()
         elif btn_id == "btn_replay_run":
             self.action_replay_run()
         elif btn_id == "btn_resume_failed":
@@ -241,6 +298,36 @@ class RunHistoryScreen(Screen):
         self.app.action_back()
 
     def action_delete_run(self) -> None:
+        from src.ui.tui.modals.confirm_modal import ConfirmModal
+
+        # 1. Bulk delete if items selected with checkboxes
+        if self.selected_run_ids:
+            target_ids = list(self.selected_run_ids)
+            count = len(target_ids)
+
+            def _do_batch_delete(res) -> None:
+                if res and res.get("confirmed"):
+                    rm = getattr(self.app, "run_manager", None)
+                    if rm:
+                        results = rm.delete_runs(target_ids)
+                        deleted_cnt = sum(1 for ok in results.values() if ok)
+                        self.selected_run_ids.clear()
+                        self.notify(f"{deleted_cnt} runs permanently deleted.", severity="information")
+                        self.refresh_history()
+                        try:
+                            self.query_one("#lbl_history_details", Static).update("Select a run above to view execution details.")
+                        except Exception:
+                            pass
+
+            modal = ConfirmModal(
+                title=f"Permanently Delete {count} Runs",
+                message=f"Are you sure you want to delete {count} selected runs?\nThis removes all state files and git worktrees.",
+                action="delete"
+            )
+            self.app.push_screen(modal, callback=_do_batch_delete)
+            return
+
+        # 2. Single delete of currently selected run
         run_id = self._get_selected_run_id()
         if not run_id:
             self.notify("No run selected to delete.", severity="warning")
@@ -260,7 +347,6 @@ class RunHistoryScreen(Screen):
                     else:
                         self.notify(f"Failed to delete {run_id}.", severity="error")
 
-        from src.ui.tui.modals.confirm_modal import ConfirmModal
         modal = ConfirmModal(
             title="Permanently Delete Run",
             message=f"Are you sure you want to delete run '{run_id}'?\nThis removes all state files and git worktrees.",

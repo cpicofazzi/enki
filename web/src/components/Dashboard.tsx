@@ -33,6 +33,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectRun, onNewRun }) =
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -42,8 +45,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectRun, onNewRun }) =
       ]);
       const runsData = await runsRes.json();
       const metricsData = await metricsRes.json();
-      setRuns(runsData.runs || []);
+      const fetchedRuns: RunSummary[] = runsData.runs || [];
+      setRuns(fetchedRuns);
       setMetrics(metricsData);
+      const validIds = new Set(fetchedRuns.map((r) => r.run_id));
+      setSelectedRunIds((prev) => new Set([...prev].filter((id) => validIds.has(id))));
     } catch (e) {
       console.error('Error fetching dashboard data:', e);
     } finally {
@@ -55,6 +61,57 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectRun, onNewRun }) =
     fetchData();
   }, []);
 
+  const handleToggleSelectAll = () => {
+    if (selectedRunIds.size === runs.length && runs.length > 0) {
+      setSelectedRunIds(new Set());
+    } else {
+      setSelectedRunIds(new Set(runs.map((r) => r.run_id)));
+    }
+  };
+
+  const handleToggleSelectRun = (runId: string, e: React.MouseEvent | React.ChangeEvent) => {
+    e.stopPropagation();
+    setSelectedRunIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(runId)) {
+        next.delete(runId);
+      } else {
+        next.add(runId);
+      }
+      return next;
+    });
+  };
+
+  const handleBatchDelete = async () => {
+    const idsToDelete = Array.from(selectedRunIds);
+    if (idsToDelete.length === 0) return;
+
+    const count = idsToDelete.length;
+    if (!window.confirm(`Permanently delete ${count} selected run${count > 1 ? 's' : ''}?\n\nThis will remove all artifacts, logs, and associated git worktrees. This action cannot be undone.`)) {
+      return;
+    }
+
+    setBatchDeleting(true);
+    try {
+      const res = await fetch('/api/runs/batch-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_ids: idsToDelete })
+      });
+      if (res.ok) {
+        setSelectedRunIds(new Set());
+        await fetchData();
+      } else {
+        alert('Failed to delete selected runs.');
+      }
+    } catch (err) {
+      console.error('Batch delete error:', err);
+      alert('An error occurred during batch deletion.');
+    } finally {
+      setBatchDeleting(false);
+    }
+  };
+
   const handleDeleteRun = async (runId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!window.confirm(`Permanently delete run ${runId}?\n\nThis will remove all artifacts, logs, and state files.`)) {
@@ -63,6 +120,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectRun, onNewRun }) =
     try {
       const res = await fetch(`/api/runs/${runId}`, { method: 'DELETE' });
       if (res.ok) {
+        setSelectedRunIds((prev) => {
+          const next = new Set(prev);
+          next.delete(runId);
+          return next;
+        });
         fetchData();
       } else {
         alert(`Failed to delete run ${runId}`);
@@ -251,8 +313,53 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectRun, onNewRun }) =
 
       {/* Runs Table */}
       <div style={{ background: '#1e293b', borderRadius: 8, border: '1px solid #334155', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Layers size={18} /> Active & Historical Runs
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid #334155', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16 }}>
+            <Layers size={18} /> Active & Historical Runs
+          </div>
+
+          {selectedRunIds.size > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#0f172a', padding: '4px 12px', borderRadius: 6, border: '1px solid #7f1d1d' }}>
+              <span style={{ fontSize: 13, color: '#fca5a5', fontWeight: 600 }}>
+                {selectedRunIds.size} of {runs.length} selected
+              </span>
+              <button
+                onClick={handleBatchDelete}
+                disabled={batchDeleting}
+                title="Delete Selected Runs"
+                style={{
+                  background: '#dc2626',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '6px 14px',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                }}
+              >
+                <Trash2 size={13} /> {batchDeleting ? 'Deleting...' : `Delete Selected (${selectedRunIds.size})`}
+              </button>
+              <button
+                onClick={() => setSelectedRunIds(new Set())}
+                style={{
+                  background: '#334155',
+                  color: '#cbd5e1',
+                  border: 'none',
+                  padding: '6px 10px',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontSize: 12
+                }}
+              >
+                Deselect All
+              </button>
+            </div>
+          )}
         </div>
         
         {loading ? (
@@ -261,9 +368,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectRun, onNewRun }) =
           <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>No runs executed yet. Click "Start New Run" to launch your first DAG.</div>
         ) : (
           <div style={{ overflowX: 'auto', width: '100%' }}>
-            <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
+            <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
               <thead>
                 <tr style={{ background: '#0f172a', color: '#94a3b8', borderBottom: '1px solid #334155' }}>
+                  <th style={{ padding: '12px 14px', width: 44, textAlign: 'center' }}>
+                    <input 
+                      type="checkbox"
+                      checked={runs.length > 0 && selectedRunIds.size === runs.length}
+                      onChange={handleToggleSelectAll}
+                      title={runs.length > 0 && selectedRunIds.size === runs.length ? "Deselect All" : "Select All"}
+                      style={{ cursor: 'pointer', width: 16, height: 16, accentColor: '#ef4444' }}
+                    />
+                  </th>
                   <th style={{ padding: '12px 16px' }}>Run ID</th>
                   <th style={{ padding: '12px 16px' }}>Task</th>
                   <th style={{ padding: '12px 16px' }}>Workflow</th>
@@ -273,49 +389,68 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectRun, onNewRun }) =
                 </tr>
               </thead>
               <tbody>
-                {runs.map((r) => (
-                  <tr key={r.run_id} style={{ borderBottom: '1px solid #334155' }}>
-                    <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#38bdf8' }}>{r.run_id}</td>
-                    <td style={{ padding: '12px 16px', maxWidth: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.task}</td>
-                    <td style={{ padding: '12px 16px', color: '#94a3b8' }}>{r.workflow_id}</td>
-                    <td style={{ padding: '12px 16px' }}>{getStatusBadge(r.status)}</td>
-                    <td style={{ padding: '12px 16px' }}>${(r.total_cost_usd || 0).toFixed(4)}</td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <button 
-                          onClick={() => onSelectRun(r.run_id)}
-                          style={{ 
-                            background: '#334155', 
-                            color: '#f8fafc', 
-                            border: 'none', 
-                            padding: '4px 12px', 
-                            borderRadius: 4, 
-                            cursor: 'pointer',
-                            fontSize: 12
-                          }}>
-                          View Live
-                        </button>
-                        <button 
-                          onClick={(e) => handleDeleteRun(r.run_id, e)}
-                          title={`Delete Run ${r.run_id}`}
-                          style={{ 
-                            background: '#450a0a', 
-                            color: '#fca5a5', 
-                            border: '1px solid #7f1d1d', 
-                            padding: '4px 8px', 
-                            borderRadius: 4, 
-                            cursor: 'pointer',
-                            fontSize: 12,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4
-                          }}>
-                          <Trash2 size={13} /> Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {runs.map((r) => {
+                  const isSelected = selectedRunIds.has(r.run_id);
+                  return (
+                    <tr 
+                      key={r.run_id} 
+                      style={{ 
+                        borderBottom: '1px solid #334155',
+                        background: isSelected ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                        transition: 'background 0.15s ease'
+                      }}
+                    >
+                      <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                        <input 
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => handleToggleSelectRun(r.run_id, e)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ cursor: 'pointer', width: 16, height: 16, accentColor: '#ef4444' }}
+                        />
+                      </td>
+                      <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#38bdf8' }}>{r.run_id}</td>
+                      <td style={{ padding: '12px 16px', maxWidth: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.task}</td>
+                      <td style={{ padding: '12px 16px', color: '#94a3b8' }}>{r.workflow_id}</td>
+                      <td style={{ padding: '12px 16px' }}>{getStatusBadge(r.status)}</td>
+                      <td style={{ padding: '12px 16px' }}>${(r.total_cost_usd || 0).toFixed(4)}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <button 
+                            onClick={() => onSelectRun(r.run_id)}
+                            style={{ 
+                              background: '#334155', 
+                              color: '#f8fafc', 
+                              border: 'none', 
+                              padding: '4px 12px', 
+                              borderRadius: 4, 
+                              cursor: 'pointer',
+                              fontSize: 12
+                            }}>
+                            View Live
+                          </button>
+                          <button 
+                            onClick={(e) => handleDeleteRun(r.run_id, e)}
+                            title={`Delete Run ${r.run_id}`}
+                            style={{ 
+                              background: '#450a0a', 
+                              color: '#fca5a5', 
+                              border: '1px solid #7f1d1d', 
+                              padding: '4px 8px', 
+                              borderRadius: 4, 
+                              cursor: 'pointer',
+                              fontSize: 12,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}>
+                            <Trash2 size={13} /> Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
