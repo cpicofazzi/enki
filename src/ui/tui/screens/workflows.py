@@ -20,6 +20,7 @@ class WorkflowsScreen(Screen):
     """Screen 5: Workflow DAG templates and specification browser."""
 
     BINDINGS = [
+        Binding("escape", "back", "Back", priority=False),
         Binding("enter", "use_workflow", "Use Workflow", priority=False),
         Binding("r", "reload", "Reload", priority=False),
     ]
@@ -51,6 +52,7 @@ class WorkflowsScreen(Screen):
                     )
 
             with Horizontal(id="workflow_actions", classes="action-bar"):
+                yield Button("Back [Esc]", variant="default", id="btn_back_workflows")
                 yield Button("Start Run with this Workflow [Enter]", variant="primary", id="btn_use_workflow")
                 yield Button("Reload from Disk [R]", variant="default", id="btn_reload_workflows")
 
@@ -122,6 +124,11 @@ class WorkflowsScreen(Screen):
             self.action_use_workflow()
         elif event.button.id == "btn_reload_workflows":
             self.action_reload()
+        elif event.button.id == "btn_back_workflows":
+            self.action_back()
+
+    def action_back(self) -> None:
+        self.app.action_back()
 
     def action_use_workflow(self) -> None:
         table = self.query_one("#tbl_workflows", DataTable)
