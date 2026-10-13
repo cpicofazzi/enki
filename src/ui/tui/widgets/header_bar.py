@@ -21,7 +21,7 @@ class HeaderBar(Widget):
             yield Static("ENKI COMMAND HUB", id="header_hub_title")
             yield Static("Gateway: Loading...", id="header_gateway_badge")
             yield Static("Spend: $0.00 / $25.00", id="header_spend_pill")
-            yield Static("[?] Help | [1-0] Screens | [Q] Quit", id="header_nav_hint")
+            yield Static("[?] Help | [1-0] Screens | [Esc/B] Back | [Q] Quit", id="header_nav_hint")
 
     def on_mount(self) -> None:
         self.refresh_status()

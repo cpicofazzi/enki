@@ -20,6 +20,7 @@ class TelemetryScreen(Screen):
     """Screen 8: Telemetry, spend monitoring, and token analytics."""
 
     BINDINGS = [
+        Binding("escape", "back", "Back", priority=False),
         Binding("r", "refresh_telemetry", "Refresh Telemetry", priority=False),
     ]
 
@@ -53,6 +54,7 @@ class TelemetryScreen(Screen):
                 yield DataTable(id="tbl_recent_tx")
 
             with Horizontal(id="telemetry_action_bar", classes="action-bar"):
+                yield Button("Back [Esc]", variant="default", id="btn_back_telemetry")
                 yield Button("Refresh Telemetry [R]", variant="primary", id="btn_refresh_telemetry")
 
     def on_mount(self) -> None:
@@ -162,6 +164,11 @@ class TelemetryScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn_refresh_telemetry":
             self.action_refresh_telemetry()
+        elif event.button.id == "btn_back_telemetry":
+            self.action_back()
+
+    def action_back(self) -> None:
+        self.app.action_back()
 
     def action_refresh_telemetry(self) -> None:
         self.refresh_telemetry_data()

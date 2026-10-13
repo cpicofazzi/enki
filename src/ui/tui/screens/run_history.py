@@ -21,6 +21,7 @@ class RunHistoryScreen(Screen):
     """Screen 9: Run History, replay, and resume failed steps."""
 
     BINDINGS = [
+        Binding("escape", "back", "Back", priority=False),
         Binding("f", "view_subagents_flow", "Subagent Flow", priority=False),
         Binding("v", "view_historical", "View Live", priority=False),
         Binding("p", "replay_run", "Replay", priority=False),
@@ -42,12 +43,13 @@ class RunHistoryScreen(Screen):
                 yield Static("Select a run above to view execution details.", id="lbl_history_details")
 
             with Horizontal(id="history_action_bar", classes="action-bar"):
-                yield Button("Subagent Flow & Artifacts [F]", variant="primary", id="btn_view_flow")
-                yield Button("View in Live Run [V]", variant="default", id="btn_view_historical")
-                yield Button("Replay Run Stream [P]", variant="default", id="btn_replay_run")
-                yield Button("Resume Failed Step [R]", variant="warning", id="btn_resume_failed")
-                yield Button("View Git Diff [D]", variant="default", id="btn_history_diff")
-                yield Button("View Payload [E]", variant="default", id="btn_history_payload")
+                yield Button("Back [Esc]", variant="default", id="btn_back_history")
+                yield Button("Flow [F]", variant="primary", id="btn_view_flow")
+                yield Button("Live [V]", variant="default", id="btn_view_historical")
+                yield Button("Replay [P]", variant="default", id="btn_replay_run")
+                yield Button("Resume [R]", variant="warning", id="btn_resume_failed")
+                yield Button("Diff [D]", variant="default", id="btn_history_diff")
+                yield Button("Payload [E]", variant="default", id="btn_history_payload")
                 yield Button("Delete Run [X]", variant="error", id="btn_delete_run")
 
     def on_mount(self) -> None:
@@ -232,6 +234,11 @@ class RunHistoryScreen(Screen):
             self.action_history_payload()
         elif btn_id == "btn_delete_run":
             self.action_delete_run()
+        elif btn_id == "btn_back_history":
+            self.action_back()
+
+    def action_back(self) -> None:
+        self.app.action_back()
 
     def action_delete_run(self) -> None:
         run_id = self._get_selected_run_id()

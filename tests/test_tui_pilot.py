@@ -24,7 +24,7 @@ from typing import Dict, Any, List, Optional, Generator
 
 import pytest
 from textual.widgets import (
-    Select, Switch, Static, DataTable, RichLog, TextArea
+    Select, Switch, Static, DataTable, RichLog, TextArea, Button
 )
 
 from src.ui.tui.app import EnkiTUIApp, EngineRunEvent
@@ -597,3 +597,63 @@ async def test_tui_suite_fast_execution_benchmark(seeded_tui_app):
             await pilot.pause()
     duration = time.monotonic() - start_time
     assert duration < 5.0, f"Full TUI navigation took {duration:.2f}s, exceeding 5.0s benchmark limit"
+
+
+@pytest.mark.asyncio
+async def test_tui_back_navigation_all_screens(seeded_tui_app):
+    """
+    Verifies that users can never get stuck on any screen:
+    1. Tests going back via 'b' hotkey from screens.
+    2. Tests going back via 'escape' from screens.
+    3. Tests clicking the 'Back [Esc]' button on screens.
+    4. Tests that screen_history correctly tracks navigation stack.
+    """
+    async with seeded_tui_app.run_test(size=(120, 36)) as pilot:
+        # 1. Test navigation history stack: Dashboard -> Workflows -> Telemetry -> Back -> Back
+        await pilot.press("5")  # Workflows
+        await pilot.pause()
+        assert type(seeded_tui_app.screen).__name__ == "WorkflowsScreen"
+
+        await pilot.press("8")  # Telemetry
+        await pilot.pause()
+        assert type(seeded_tui_app.screen).__name__ == "TelemetryScreen"
+
+        # Press 'b' to go back to Workflows
+        await pilot.press("b")
+        await pilot.pause()
+        assert type(seeded_tui_app.screen).__name__ == "WorkflowsScreen"
+
+        # Press 'b' to go back to Dashboard
+        await pilot.press("b")
+        await pilot.pause()
+        assert type(seeded_tui_app.screen).__name__ == "DashboardScreen"
+
+        # 2. Test clicking Back button on LiveRunScreen
+        await pilot.press("3")  # Live Run
+        await pilot.pause()
+        assert type(seeded_tui_app.screen).__name__ == "LiveRunScreen"
+        btn_back = seeded_tui_app.screen.query_one("#btn_back_live", Button)
+        btn_back.press()
+        await pilot.pause()
+        assert type(seeded_tui_app.screen).__name__ == "DashboardScreen"
+
+        # 3. Test clicking Back button on FinishedRunsScreen
+        await pilot.press("0")  # Finished Runs
+        await pilot.pause()
+        assert type(seeded_tui_app.screen).__name__ == "FinishedRunsScreen"
+        btn_back_fin = seeded_tui_app.screen.query_one("#btn_back_finished", Button)
+        btn_back_fin.press()
+        await pilot.pause()
+        assert type(seeded_tui_app.screen).__name__ == "DashboardScreen"
+
+        # 4. Test double escape from input-focused screen (ModelBrowserScreen)
+        await pilot.press("6")  # Model Browser
+        await pilot.pause()
+        assert type(seeded_tui_app.screen).__name__ == "ModelBrowserScreen"
+        # 1st escape blurs input, 2nd escape navigates back
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        assert type(seeded_tui_app.screen).__name__ == "DashboardScreen"
+

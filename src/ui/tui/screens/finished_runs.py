@@ -22,6 +22,7 @@ class FinishedRunsScreen(Screen):
     """Screen 10: Finished run worktrees, diff inspection, and teardown choices."""
 
     BINDINGS = [
+        Binding("escape", "back", "Back", priority=False),
         Binding("m", "merge", "Merge", priority=False),
         Binding("k", "keep", "Keep", priority=False),
         Binding("d", "discard", "Discard", priority=False),
@@ -54,11 +55,12 @@ class FinishedRunsScreen(Screen):
                     id="lbl_teardown_warning"
                 )
                 with Horizontal(id="teardown_controls"):
+                    yield Button("Back [Esc]", variant="default", id="btn_back_finished")
                     yield Label("Target Branch:")
                     yield Input(value="main", id="inp_target_branch")
-                    yield Button("Merge into Target Branch [M]", variant="success", id="btn_merge_worktree")
-                    yield Button("Keep Branch [K]", variant="primary", id="btn_keep_worktree")
-                    yield Button("Discard Branch [D]", variant="error", id="btn_discard_worktree")
+                    yield Button("Merge [M]", variant="success", id="btn_merge_worktree")
+                    yield Button("Keep [K]", variant="primary", id="btn_keep_worktree")
+                    yield Button("Discard [D]", variant="error", id="btn_discard_worktree")
                     yield Button("Delete Run [X]", variant="error", id="btn_delete_run")
 
     def on_mount(self) -> None:
@@ -161,6 +163,11 @@ class FinishedRunsScreen(Screen):
             self.action_discard()
         elif btn_id == "btn_delete_run":
             self.action_delete_run()
+        elif btn_id == "btn_back_finished":
+            self.action_back()
+
+    def action_back(self) -> None:
+        self.app.action_back()
 
     def action_merge(self) -> None:
         run_id = self._get_selected_run_id()

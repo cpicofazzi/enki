@@ -23,6 +23,7 @@ class ObsidianBrowserScreen(Screen):
     """Screen 7: Obsidian Vault note browser and task launcher."""
 
     BINDINGS = [
+        Binding("escape", "back", "Back", priority=False),
         Binding("enter", "start_from_note", "Start Run from Note", priority=False),
         Binding("r", "refresh_vault", "Refresh Vault", priority=False),
     ]
@@ -54,6 +55,7 @@ class ObsidianBrowserScreen(Screen):
                     )
 
             with Horizontal(id="vault_action_bar", classes="action-bar"):
+                yield Button("Back [Esc]", variant="default", id="btn_back_vault")
                 yield Button("Start Run from Note [Enter]", variant="primary", id="btn_start_from_note")
                 yield Button("Refresh Vault Index [R]", variant="default", id="btn_refresh_vault")
 
@@ -151,6 +153,11 @@ class ObsidianBrowserScreen(Screen):
             self.action_start_from_note()
         elif event.button.id == "btn_refresh_vault":
             self.action_refresh_vault()
+        elif event.button.id == "btn_back_vault":
+            self.action_back()
+
+    def action_back(self) -> None:
+        self.app.action_back()
 
     def action_start_from_note(self) -> None:
         """Extracts task requirements and project from selected note, then launches StartRunScreen."""

@@ -62,6 +62,7 @@ HeaderBar {
     border-top: solid #30363d;
     padding: 0 1;
     align: left middle;
+    overflow-x: auto;
 }
 
 /* --- Split Panes --- */

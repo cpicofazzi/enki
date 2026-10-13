@@ -22,6 +22,7 @@ class ModelBrowserScreen(Screen):
     """Screen 6: AI Model catalog and assignment configuration browser."""
 
     BINDINGS = [
+        Binding("escape", "back", "Back", priority=False),
         Binding("h", "set_hermes", "Set Hermes", priority=False),
         Binding("o", "set_omp", "Set OMP", priority=False),
         Binding("p", "set_project", "Set Project", priority=False),
@@ -58,6 +59,7 @@ class ModelBrowserScreen(Screen):
                     yield DataTable(id="tbl_project_overrides")
 
             with Horizontal(id="model_action_bar", classes="action-bar"):
+                yield Button("Back [Esc]", variant="default", id="btn_back_models")
                 yield Button("Set as Hermes Model [H]", variant="primary", id="btn_set_hermes")
                 yield Button("Set as OMP Model [O]", variant="success", id="btn_set_omp")
                 yield Button("Set for Project [P]", variant="default", id="btn_set_project_model")
@@ -143,6 +145,11 @@ class ModelBrowserScreen(Screen):
             self.action_set_project()
         elif btn_id == "btn_refresh_catalog":
             self.action_refresh_catalog()
+        elif btn_id == "btn_back_models":
+            self.action_back()
+
+    def action_back(self) -> None:
+        self.app.action_back()
 
     def _get_selected_model_id(self) -> Optional[str]:
         table = self.query_one("#tbl_models_catalog", DataTable)

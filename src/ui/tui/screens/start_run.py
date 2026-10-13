@@ -220,4 +220,4 @@ class StartRunScreen(Screen):
         self.query_one("#chk_find_research", Checkbox).value = False
 
     def action_cancel(self) -> None:
-        self.app.switch_screen("dashboard")
+        self.app.action_back()

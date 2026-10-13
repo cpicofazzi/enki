@@ -260,63 +260,65 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectRun, onNewRun }) =
         ) : runs.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>No runs executed yet. Click "Start New Run" to launch your first DAG.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
-            <thead>
-              <tr style={{ background: '#0f172a', color: '#94a3b8', borderBottom: '1px solid #334155' }}>
-                <th style={{ padding: '12px 16px' }}>Run ID</th>
-                <th style={{ padding: '12px 16px' }}>Task</th>
-                <th style={{ padding: '12px 16px' }}>Workflow</th>
-                <th style={{ padding: '12px 16px' }}>Status</th>
-                <th style={{ padding: '12px 16px' }}>Cost</th>
-                <th style={{ padding: '12px 16px' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((r) => (
-                <tr key={r.run_id} style={{ borderBottom: '1px solid #334155' }}>
-                  <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#38bdf8' }}>{r.run_id}</td>
-                  <td style={{ padding: '12px 16px', maxWidth: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.task}</td>
-                  <td style={{ padding: '12px 16px', color: '#94a3b8' }}>{r.workflow_id}</td>
-                  <td style={{ padding: '12px 16px' }}>{getStatusBadge(r.status)}</td>
-                  <td style={{ padding: '12px 16px' }}>${(r.total_cost_usd || 0).toFixed(4)}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button 
-                        onClick={() => onSelectRun(r.run_id)}
-                        style={{ 
-                          background: '#334155', 
-                          color: '#f8fafc', 
-                          border: 'none', 
-                          padding: '4px 12px', 
-                          borderRadius: 4, 
-                          cursor: 'pointer',
-                          fontSize: 12
-                        }}>
-                        View Live
-                      </button>
-                      <button 
-                        onClick={(e) => handleDeleteRun(r.run_id, e)}
-                        title={`Delete Run ${r.run_id}`}
-                        style={{ 
-                          background: '#450a0a', 
-                          color: '#fca5a5', 
-                          border: '1px solid #7f1d1d', 
-                          padding: '4px 8px', 
-                          borderRadius: 4, 
-                          cursor: 'pointer',
-                          fontSize: 12,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4
-                        }}>
-                        <Trash2 size={13} /> Delete
-                      </button>
-                    </div>
-                  </td>
+          <div style={{ overflowX: 'auto', width: '100%' }}>
+            <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
+              <thead>
+                <tr style={{ background: '#0f172a', color: '#94a3b8', borderBottom: '1px solid #334155' }}>
+                  <th style={{ padding: '12px 16px' }}>Run ID</th>
+                  <th style={{ padding: '12px 16px' }}>Task</th>
+                  <th style={{ padding: '12px 16px' }}>Workflow</th>
+                  <th style={{ padding: '12px 16px' }}>Status</th>
+                  <th style={{ padding: '12px 16px' }}>Cost</th>
+                  <th style={{ padding: '12px 16px' }}>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {runs.map((r) => (
+                  <tr key={r.run_id} style={{ borderBottom: '1px solid #334155' }}>
+                    <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#38bdf8' }}>{r.run_id}</td>
+                    <td style={{ padding: '12px 16px', maxWidth: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.task}</td>
+                    <td style={{ padding: '12px 16px', color: '#94a3b8' }}>{r.workflow_id}</td>
+                    <td style={{ padding: '12px 16px' }}>{getStatusBadge(r.status)}</td>
+                    <td style={{ padding: '12px 16px' }}>${(r.total_cost_usd || 0).toFixed(4)}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button 
+                          onClick={() => onSelectRun(r.run_id)}
+                          style={{ 
+                            background: '#334155', 
+                            color: '#f8fafc', 
+                            border: 'none', 
+                            padding: '4px 12px', 
+                            borderRadius: 4, 
+                            cursor: 'pointer',
+                            fontSize: 12
+                          }}>
+                          View Live
+                        </button>
+                        <button 
+                          onClick={(e) => handleDeleteRun(r.run_id, e)}
+                          title={`Delete Run ${r.run_id}`}
+                          style={{ 
+                            background: '#450a0a', 
+                            color: '#fca5a5', 
+                            border: '1px solid #7f1d1d', 
+                            padding: '4px 8px', 
+                            borderRadius: 4, 
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4
+                          }}>
+                          <Trash2 size={13} /> Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

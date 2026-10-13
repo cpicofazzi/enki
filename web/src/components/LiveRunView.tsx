@@ -241,7 +241,7 @@ export const LiveRunView: React.FC<LiveRunViewProps> = ({ runId, onBack }) => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           {/* Worktree Teardown Controls for completed runs */}
           {run?.status === 'completed' && (
             <>

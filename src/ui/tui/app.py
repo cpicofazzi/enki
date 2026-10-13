@@ -182,29 +182,19 @@ class EnkiTUIApp(App):
             self.push_screen(HelpModal())
 
     def action_handle_escape(self) -> None:
-        """Anti-trap escape handler: dismisses active modal, blurs focused text input, or navigates back."""
+        """Anti-trap escape handler: dismisses active modal, blurs focused widget, or navigates back."""
         # 1. Pop modal dialog overlay if open
         if isinstance(self.screen, ModalScreen):
             self.pop_screen()
             return
 
-        # 2. If a text field (Input or TextArea) currently has focus, blur it so navigation keys work
-        from textual.widgets import TextArea, Input
-        if self.screen.focused is not None and isinstance(self.screen.focused, (TextArea, Input)):
+        # 2. If any widget currently has focus, blur it so global navigation keys work
+        if self.screen.focused is not None:
             self.screen.set_focus(None)
             return
 
-        # 3. Check if active screen declares custom escape/cancel/discard/back behavior
+        # 3. If nothing is focused, check if active screen declares custom cancel/discard/back behavior
         screen = self.screen
-        for binding in getattr(screen, "BINDINGS", []):
-            key = binding.key if isinstance(binding, Binding) else binding[0]
-            action = binding.action if isinstance(binding, Binding) else binding[1]
-            if key == "escape":
-                handler = getattr(screen, f"action_{action}", None)
-                if handler is not None:
-                    handler()
-                    return
-
         if hasattr(screen, "action_cancel"):
             screen.action_cancel()
             return
@@ -218,8 +208,6 @@ class EnkiTUIApp(App):
         # 4. If not on dashboard, navigate back to previous screen or dashboard
         if self.active_screen_name != "dashboard" or type(self.screen).__name__ != "DashboardScreen":
             self.action_back()
-        else:
-            self.screen.set_focus(None)
 
     def action_quit_app(self) -> None:
         """Exits the application cleanly."""

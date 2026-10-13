@@ -59,11 +59,11 @@ class PayloadEditorScreen(Screen):
                 )
 
             with Horizontal(id="payload_action_bar", classes="action-bar"):
+                yield Button("Discard / Back [Esc]", variant="error", id="btn_discard_payload")
                 yield Button("Validate Schema", variant="default", id="btn_validate_json")
                 yield Button("Format JSON", variant="default", id="btn_format_json")
                 yield Button("Save Payload", variant="primary", id="btn_save_payload")
                 yield Button("Save & Approve Gate", variant="success", id="btn_save_approve_gate")
-                yield Button("Discard Changes", variant="error", id="btn_discard_payload")
 
     def on_mount(self) -> None:
         self._loaded_for_run = self.run_id or getattr(self.app, "active_run_id", "")
@@ -218,4 +218,4 @@ class PayloadEditorScreen(Screen):
         self.app.switch_screen("live_run")
 
     def action_discard(self) -> None:
-        self.app.switch_screen("live_run" if getattr(self.app, "active_run_id", None) else "dashboard")
+        self.app.action_back()
